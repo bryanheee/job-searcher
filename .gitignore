@@ -1,0 +1,9 @@
+*.csv
+*.pyc
+__pycache__/
+.env
+jobs.db
+# Keep config.json tracked — it is the live configuration edited via settings.html
+# All other JSON files (scrape outputs, etc.) remain ignored:
+!config.json
+jobs_*.json

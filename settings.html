@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Search Settings</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5; color: #2c3e50;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+header {
+  background: #1a3a5c; color: white; padding: 22px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}
+header h1 { font-size: 20px; font-weight: 600; }
+header p  { font-size: 12px; opacity: 0.65; margin-top: 4px; }
+.nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.nav-link {
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 14px; border-radius: 6px; white-space: nowrap;
+}
+.nav-link:hover { background: rgba(255,255,255,0.15); }
+
+/* ── Layout ───────────────────────────────────────────────────── */
+.page-body {
+  max-width: 860px; margin: 32px auto; padding: 0 24px 60px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card {
+  background: white; border-radius: 10px; padding: 24px 28px;
+  border: 1px solid #e8e8e8;
+}
+.card-title {
+  font-size: 15px; font-weight: 600; color: #1a3a5c;
+  margin-bottom: 18px; border-left: 3px solid #2e86ab;
+  padding-left: 10px;
+}
+.card-subtitle {
+  font-size: 12px; color: #888; margin-top: -14px; margin-bottom: 18px;
+  padding-left: 13px;
+}
+
+/* ── Form fields ──────────────────────────────────────────────── */
+.field { margin-bottom: 20px; }
+.field:last-child { margin-bottom: 0; }
+label {
+  display: block; font-size: 13px; font-weight: 600;
+  color: #444; margin-bottom: 6px;
+}
+label .hint {
+  font-weight: 400; color: #999; margin-left: 6px;
+}
+textarea, input[type="number"], input[type="text"], input[type="password"] {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid #ccc; border-radius: 6px;
+  font-size: 13px; font-family: inherit;
+  outline: none; transition: border-color 0.15s;
+  color: #2c3e50;
+}
+textarea:focus, input:focus {
+  border-color: #1a3a5c;
+  box-shadow: 0 0 0 2px rgba(26,58,92,0.08);
+}
+textarea { resize: vertical; min-height: 100px; }
+textarea.tall { min-height: 140px; }
+textarea.short { min-height: 70px; }
+.num-pair { display: flex; gap: 16px; }
+.num-pair .field { flex: 1; }
+
+/* ── Keyword tiers ────────────────────────────────────────────── */
+.tier-block {
+  border: 1px solid #e0e0e0; border-radius: 8px;
+  padding: 16px 18px; margin-bottom: 14px;
+  background: #fafafa;
+}
+.tier-block:last-child { margin-bottom: 0; }
+.tier-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+}
+.tier-header label { margin: 0; font-size: 13px; }
+.tier-header input[type="number"] {
+  width: 68px; flex-shrink: 0;
+}
+.tier-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+}
+.tier-3 { background: #d4edda; color: #155724; }
+.tier-2 { background: #cce5ff; color: #004085; }
+.tier-1 { background: #fff3cd; color: #856404; }
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn-row {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px;
+}
+.btn {
+  padding: 10px 22px; border-radius: 7px; font-size: 13px;
+  font-weight: 600; cursor: pointer; border: none;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary   { background: #1a3a5c; color: white; }
+.btn-primary:hover:not(:disabled) { background: #2e6da4; }
+.btn-secondary { background: #f0f2f5; color: #333; border: 1px solid #ccc; }
+.btn-secondary:hover:not(:disabled) { background: #e0e3e8; }
+.btn-danger    { background: #dc3545; color: white; }
+.btn-danger:hover:not(:disabled) { background: #b02a37; }
+.btn-green     { background: #28a745; color: white; }
+.btn-green:hover:not(:disabled) { background: #1e7e34; }
+
+/* ── Status bar ───────────────────────────────────────────────── */
+#statusBar {
+  padding: 12px 16px; border-radius: 7px; font-size: 13px;
+  display: none;
+}
+.status-ok      { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.status-err     { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.status-info    { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+.status-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+/* ── Security warning ─────────────────────────────────────────── */
+.security-notice {
+  background: #fff3cd; border: 1px solid #ffeeba; border-left: 4px solid #ffc107;
+  border-radius: 6px; padding: 14px 16px; font-size: 13px; color: #856404;
+}
+.security-notice strong { color: #533f03; }
+
+/* ── Setup card toggle ────────────────────────────────────────── */
+.setup-toggle {
+  font-size: 13px; color: #1a3a5c; cursor: pointer;
+  text-decoration: underline; display: inline-block; margin-top: 4px;
+}
+.setup-section { margin-top: 14px; }
+
+/* ── Instructions ─────────────────────────────────────────────── */
+.instructions {
+  font-size: 12px; color: #666; line-height: 1.6;
+  background: #f8f9fa; border-radius: 6px; padding: 12px 14px;
+  margin-top: 10px; border: 1px solid #e8e8e8;
+}
+.instructions ol, .instructions ul { margin-left: 18px; }
+.instructions li { margin-bottom: 4px; }
+.instructions code {
+  background: #e9ecef; padding: 1px 5px; border-radius: 3px;
+  font-family: monospace; font-size: 11px; color: #c7254e;
+}
+.instructions a { color: #1a3a5c; }
+
+/* ── Saved indicator ──────────────────────────────────────────── */
+.pat-saved-pill {
+  display: none; font-size: 11px; padding: 3px 9px; border-radius: 10px;
+  background: #d4edda; color: #155724; margin-left: 8px; vertical-align: middle;
+}
+
+/* ── Config loaded notice ─────────────────────────────────────── */
+#configLoadStatus {
+  font-size: 12px; color: #888; margin-top: 10px;
+}
+
+footer {
+  text-align: center; padding: 24px; font-size: 11px; color: #bbb;
+}
+
+@media (max-width: 600px) {
+  .page-body { padding: 0 12px 40px; }
+  header, .card { padding-left: 16px; padding-right: 16px; }
+  .num-pair { flex-direction: column; gap: 0; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>&#9881; Job Search Settings</h1>
+    <p>Edit all search configuration here. Changes are written to config.json in your GitHub repo.</p>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html">Live Job Board</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- Status bar -->
+  <div id="statusBar"></div>
+
+  <!-- ── GitHub Setup ───────────────────────────────────────────── -->
+  <div class="card" id="setupCard">
+    <div class="card-title">GitHub Connection</div>
+
+    <div class="security-notice">
+      <strong>Security notice:</strong> Your Personal Access Token (PAT) is stored only in
+      your browser's <code>localStorage</code> and is never committed to the repository or
+      sent anywhere except directly to the GitHub API (api.github.com). Clear it any time
+      with the "Clear saved token" button below.
+    </div>
+
+    <div class="setup-section">
+      <div class="field">
+        <label>GitHub username <span class="hint">e.g. oscarhe98</span></label>
+        <input type="text" id="ghUser" placeholder="your-github-username" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Repository name <span class="hint">e.g. JobSearcher</span></label>
+        <input type="text" id="ghRepo" placeholder="repo-name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>
+          Personal Access Token (PAT)
+          <span id="patSavedPill" class="pat-saved-pill">saved in localStorage</span>
+        </label>
+        <input type="password" id="ghPat" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+        <div style="margin-top:6px; font-size:12px; color:#888;">
+          Token is stored only in this browser — never in the repo.
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveGhSettings()">Save connection settings</button>
+        <button class="btn btn-danger"  onclick="clearPat()">Clear saved token</button>
+      </div>
+
+      <div class="instructions" style="margin-top:16px;">
+        <strong>How to create a PAT with the right permissions:</strong>
+        <ol>
+          <li>Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">
+            github.com/settings/tokens</a> (fine-grained tokens recommended)</li>
+          <li>Click <strong>Generate new token</strong></li>
+          <li>Set expiry (90 days is reasonable), select your repository under
+            <strong>Repository access</strong></li>
+          <li>Under <strong>Repository permissions</strong> grant:
+            <ul>
+              <li><code>Contents</code> — Read and write (to update config.json)</li>
+              <li><code>Actions</code> — Read and write (to trigger workflow_dispatch)</li>
+            </ul>
+          </li>
+          <li>Click <strong>Generate token</strong>, copy it, and paste it above</li>
+        </ol>
+        <div style="margin-top:8px; color:#856404; font-weight:600;">
+          Treat the PAT like a password. Never paste it into any file in your repo.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Search Queries ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Search Queries</div>
+    <div class="card-subtitle">One query per line — sent to both Indeed NL and LinkedIn</div>
+    <div class="field">
+      <textarea id="searchQueries" class="tall"
+        placeholder="control systems engineer&#10;mechatronics engineer&#10;GNC engineer"></textarea>
+    </div>
+  </div>
+
+  <!-- ── Keyword Tiers ──────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Scored Keywords</div>
+    <div class="card-subtitle">
+      One keyword/phrase per line in each tier. Each tier contributes its weight at most once
+      per job — so a job with 20 weight-1 hits does not beat one with 2 weight-3 hits.
+    </div>
+
+    <div class="tier-block">
+      <div class="tier-header">
+        <span class="tier-badge tier-3">Weight 3</span>
+        <span style="font-size:12px; color:#555;">Core skills — strongest signal (MPC, Kalman, LQR, Python, PyTorch, GNC…)</span>
+      </div>
+      <textarea id="kw3" class="tall"
+        placeholder="mpc&#10;model predictive control&#10;kalman&#10;lqr"></textarea>
+    </div>
+
+    <div class="tier-block">
+      <div class="tier-header">
+        <span class="tier-badge tier-2">Weight 2</span>
+        <span style="font-size:12px; color:#555;">Strong matches — domain &amp; toolchain (MATLAB, Simulink, robotics, aerospace…)</span>
+      </div>
+      <textarea id="kw2" class="tall"
+        placeholder="matlab&#10;simulink&#10;robotics&#10;mechatronics"></textarea>
+    </div>
+
+    <div class="tier-block">
+      <div class="tier-header">
+        <span class="tier-badge tier-1">Weight 1</span>
+        <span style="font-size:12px; color:#555;">Broad supporting signals (control, precision, PID, UAV, satellite…)</span>
+      </div>
+      <textarea id="kw1" class="tall"
+        placeholder="control&#10;automation&#10;pid&#10;precision"></textarea>
+    </div>
+  </div>
+
+  <!-- ── Blacklists ─────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Blacklists</div>
+    <div class="card-subtitle">One term per line</div>
+
+    <div class="field">
+      <label>
+        Title blacklist
+        <span class="hint">excluded only if the term appears in the job title</span>
+      </label>
+      <textarea id="blacklistTitle" class="short"
+        placeholder="plc&#10;scada&#10;automation engineer"></textarea>
+    </div>
+
+    <div class="field">
+      <label>
+        Full-text blacklist
+        <span class="hint">excluded if the term appears anywhere in title + description</span>
+      </label>
+      <textarea id="blacklistFull" class="short"
+        placeholder="ladder logic&#10;tia portal&#10;codesys"></textarea>
+    </div>
+  </div>
+
+  <!-- ── Seniority patterns ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Seniority Filter Patterns</div>
+    <div class="card-subtitle">
+      Regex patterns applied to job titles only — one per line.
+      Jobs whose title matches any of these are excluded (fresh grad filter).
+    </div>
+    <div class="field">
+      <textarea id="seniorPatterns"
+        placeholder="\bsenior\b&#10;\blead\b&#10;\bprincipal\b"></textarea>
+    </div>
+  </div>
+
+  <!-- ── Target Companies ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Target Companies</div>
+    <div class="card-subtitle">
+      One company name per line (lowercase). Matching jobs are flagged with a star
+      and sorted to the top of results.
+    </div>
+    <div class="field">
+      <textarea id="targetCompanies" class="tall"
+        placeholder="asml&#10;sioux&#10;demcon&#10;tmc"></textarea>
+    </div>
+  </div>
+
+  <!-- ── Numeric settings ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Search Parameters</div>
+    <div class="num-pair">
+      <div class="field">
+        <label>
+          Results per query
+          <span class="hint">per site per search term</span>
+        </label>
+        <input type="number" id="resultsPerQuery" min="5" max="200" step="5" value="30">
+      </div>
+      <div class="field">
+        <label>
+          Max age (hours)
+          <span class="hint">168 = 7 days; only jobs posted within this window</span>
+        </label>
+        <input type="number" id="hoursOld" min="24" max="720" step="24" value="168">
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Config load status ─────────────────────────────────────── -->
+  <div id="configLoadStatus"></div>
+
+  <!-- ── Action buttons ────────────────────────────────────────────-->
+  <div class="card">
+    <div class="card-title">Save &amp; Deploy</div>
+    <p style="font-size:13px; color:#555; margin-bottom:16px; line-height:1.6;">
+      <strong>Save &amp; Trigger Search</strong> commits the updated config.json to your
+      GitHub repo's main branch via the API, then triggers the GitHub Actions workflow
+      so a fresh search runs immediately with the new settings.<br><br>
+      <strong>Save locally</strong> downloads config.json to your machine only —
+      useful for reviewing before committing.
+    </p>
+    <div class="btn-row">
+      <button class="btn btn-green"     id="btnSaveTrigger" onclick="saveAndTrigger()">
+        Save &amp; Trigger Search
+      </button>
+      <button class="btn btn-secondary" id="btnSaveLocal"   onclick="saveLocally()">
+        Save locally (download)
+      </button>
+      <button class="btn btn-secondary" id="btnLoadCurrent" onclick="loadCurrentConfig()">
+        Reload current config
+      </button>
+    </div>
+  </div>
+
+</div><!-- /.page-body -->
+
+<footer>
+  Settings are written to config.json in your GitHub repo via the Contents API.
+  Your PAT lives only in localStorage and is never committed anywhere.
+</footer>
+
+<script>
+// ──────────────────────────────────────────────────────────────────
+// localStorage keys
+// ──────────────────────────────────────────────────────────────────
+const LS_USER = 'jss_gh_user';
+const LS_REPO = 'jss_gh_repo';
+const LS_PAT  = 'jss_gh_pat';
+
+// ──────────────────────────────────────────────────────────────────
+// Status helpers
+// ──────────────────────────────────────────────────────────────────
+function showStatus(msg, type) {
+  // type: 'ok' | 'err' | 'info' | 'warning'
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className   = 'status-' + type;
+  bar.style.display = 'block';
+  bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function hideStatus() {
+  document.getElementById('statusBar').style.display = 'none';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// GitHub connection settings
+// ──────────────────────────────────────────────────────────────────
+function saveGhSettings() {
+  const user = document.getElementById('ghUser').value.trim();
+  const repo = document.getElementById('ghRepo').value.trim();
+  const pat  = document.getElementById('ghPat').value.trim();
+  if (!user || !repo) {
+    showStatus('Please enter both a GitHub username and repository name.', 'err');
+    return;
+  }
+  localStorage.setItem(LS_USER, user);
+  localStorage.setItem(LS_REPO, repo);
+  if (pat) {
+    localStorage.setItem(LS_PAT, pat);
+    document.getElementById('ghPat').value = '';
+  }
+  updatePatPill();
+  showStatus('Connection settings saved to localStorage.', 'ok');
+}
+
+function clearPat() {
+  localStorage.removeItem(LS_PAT);
+  document.getElementById('ghPat').value = '';
+  updatePatPill();
+  showStatus('PAT cleared from localStorage.', 'info');
+}
+
+function updatePatPill() {
+  const pill = document.getElementById('patSavedPill');
+  pill.style.display = localStorage.getItem(LS_PAT) ? 'inline' : 'none';
+}
+
+function loadGhSettingsIntoForm() {
+  const user = localStorage.getItem(LS_USER) || '';
+  const repo = localStorage.getItem(LS_REPO) || '';
+  document.getElementById('ghUser').value = user;
+  document.getElementById('ghRepo').value = repo;
+  // Never prefill the PAT field — just show the pill
+  updatePatPill();
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Config <-> form serialisation
+// ──────────────────────────────────────────────────────────────────
+function textareaLines(id) {
+  return document.getElementById(id).value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
+
+function linesToTextarea(id, arr) {
+  document.getElementById(id).value = (arr || []).join('\n');
+}
+
+function configFromForm() {
+  return {
+    search_queries:   textareaLines('searchQueries'),
+    scored_keywords: [
+      { weight: 3, keywords: textareaLines('kw3') },
+      { weight: 2, keywords: textareaLines('kw2') },
+      { weight: 1, keywords: textareaLines('kw1') },
+    ],
+    blacklist_title:  textareaLines('blacklistTitle'),
+    blacklist_full:   textareaLines('blacklistFull'),
+    senior_patterns:  textareaLines('seniorPatterns'),
+    target_companies: textareaLines('targetCompanies'),
+    results_per_query: parseInt(document.getElementById('resultsPerQuery').value, 10) || 30,
+    hours_old:         parseInt(document.getElementById('hoursOld').value, 10)        || 168,
+  };
+}
+
+function populateForm(cfg) {
+  linesToTextarea('searchQueries', cfg.search_queries  || []);
+
+  // scored_keywords is [{weight, keywords}]
+  const tiers = (cfg.scored_keywords || []).reduce((acc, t) => {
+    acc[t.weight] = t.keywords;
+    return acc;
+  }, {});
+  linesToTextarea('kw3', tiers[3] || []);
+  linesToTextarea('kw2', tiers[2] || []);
+  linesToTextarea('kw1', tiers[1] || []);
+
+  linesToTextarea('blacklistTitle',  cfg.blacklist_title  || []);
+  linesToTextarea('blacklistFull',   cfg.blacklist_full   || []);
+  linesToTextarea('seniorPatterns',  cfg.senior_patterns  || []);
+  linesToTextarea('targetCompanies', cfg.target_companies || []);
+
+  document.getElementById('resultsPerQuery').value = cfg.results_per_query ?? 30;
+  document.getElementById('hoursOld').value        = cfg.hours_old         ?? 168;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Load current config.json from the deployed _site/ (GitHub Pages)
+// or from the same origin if served locally
+// ──────────────────────────────────────────────────────────────────
+async function loadCurrentConfig() {
+  const statusEl = document.getElementById('configLoadStatus');
+  statusEl.textContent = 'Loading config.json...';
+  showStatus('Loading current config.json from server...', 'info');
+
+  try {
+    // Try relative path first (works on GitHub Pages or local server)
+    const resp = await fetch('config.json?nocache=' + Date.now());
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const cfg = await resp.json();
+    populateForm(cfg);
+    statusEl.textContent = 'Config loaded from config.json on server.';
+    showStatus('Current config.json loaded into form fields.', 'ok');
+  } catch (err) {
+    // Fallback: try GitHub Contents API (works when page is opened locally)
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    const pat  = localStorage.getItem(LS_PAT);
+    if (user && repo && pat) {
+      try {
+        const ghResp = await fetch(
+          `https://api.github.com/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/contents/config.json`,
+          { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github.v3+json' } }
+        );
+        if (!ghResp.ok) throw new Error(`GitHub API ${ghResp.status}`);
+        const ghData = await ghResp.json();
+        const decoded = atob(ghData.content.replace(/\n/g, ''));
+        const cfg = JSON.parse(decoded);
+        populateForm(cfg);
+        statusEl.textContent = 'Config loaded from GitHub repo via API.';
+        showStatus('Current config.json loaded from GitHub repo.', 'ok');
+        return;
+      } catch (ghErr) {
+        statusEl.textContent = '';
+        showStatus('Could not load config.json: ' + ghErr.message, 'err');
+        return;
+      }
+    }
+    statusEl.textContent = '';
+    showStatus(
+      'Could not load config.json (' + err.message + '). ' +
+      'Enter GitHub connection settings above and save them, then try again.',
+      'warning'
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Save locally (download)
+// ──────────────────────────────────────────────────────────────────
+function saveLocally() {
+  const cfg  = configFromForm();
+  const json = JSON.stringify(cfg, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus('config.json downloaded to your machine.', 'ok');
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Save to GitHub repo via Contents API
+// ──────────────────────────────────────────────────────────────────
+async function writeConfigToGitHub(cfg) {
+  const user = localStorage.getItem(LS_USER);
+  const repo = localStorage.getItem(LS_REPO);
+  const pat  = localStorage.getItem(LS_PAT);
+
+  if (!user || !repo) throw new Error('GitHub username and repo name not set. Fill in the connection settings above.');
+  if (!pat)           throw new Error('Personal Access Token not set. Fill in the connection settings above.');
+
+  const apiBase = `https://api.github.com/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}`;
+  const filePath = 'config.json';
+
+  // 1. Fetch the current file to get its SHA (required for PUT)
+  let sha = null;
+  const getResp = await fetch(`${apiBase}/contents/${filePath}`, {
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
+  });
+  if (getResp.ok) {
+    const existing = await getResp.json();
+    sha = existing.sha;
+  } else if (getResp.status !== 404) {
+    throw new Error(`GitHub API GET failed: ${getResp.status} ${await getResp.text()}`);
+  }
+
+  // 2. PUT the updated file
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(cfg, null, 2))));
+  const body    = {
+    message: 'Update config.json via settings.html',
+    content: content,
+    ...(sha ? { sha } : {}),
+  };
+
+  const putResp = await fetch(`${apiBase}/contents/${filePath}`, {
+    method:  'PUT',
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept:        'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!putResp.ok) {
+    const text = await putResp.text();
+    throw new Error(`GitHub API PUT failed: ${putResp.status} — ${text}`);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Trigger GitHub Actions workflow_dispatch
+// ──────────────────────────────────────────────────────────────────
+async function triggerWorkflow() {
+  const user = localStorage.getItem(LS_USER);
+  const repo = localStorage.getItem(LS_REPO);
+  const pat  = localStorage.getItem(LS_PAT);
+
+  if (!user || !repo || !pat) throw new Error('GitHub connection not configured.');
+
+  // Find the workflow file name
+  const workflowFile = 'job_search.yml';
+  const ref = 'main'; // branch to dispatch on
+
+  const resp = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/workflows/${workflowFile}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref }),
+    }
+  );
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`workflow_dispatch failed: ${resp.status} — ${text}`);
+  }
+  // 204 No Content = success
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Save & Trigger (main action)
+// ──────────────────────────────────────────────────────────────────
+async function saveAndTrigger() {
+  const btn = document.getElementById('btnSaveTrigger');
+  btn.disabled = true;
+  showStatus('Writing config.json to GitHub...', 'info');
+
+  try {
+    const cfg = configFromForm();
+
+    // Validate
+    if (!cfg.search_queries.length)   throw new Error('Search queries list is empty.');
+    if (!cfg.scored_keywords[0].keywords.length &&
+        !cfg.scored_keywords[1].keywords.length &&
+        !cfg.scored_keywords[2].keywords.length) {
+      throw new Error('All keyword tiers are empty — the scorer will match nothing.');
+    }
+
+    // Write config
+    await writeConfigToGitHub(cfg);
+    showStatus('config.json committed to GitHub. Now triggering workflow...', 'info');
+
+    // Trigger workflow
+    let workflowTriggered = false;
+    try {
+      await triggerWorkflow();
+      workflowTriggered = true;
+    } catch (wfErr) {
+      // Non-fatal — the config was saved, workflow trigger just failed
+      showStatus(
+        'config.json saved successfully. Workflow trigger failed (' + wfErr.message +
+        '). You can start the run manually from the GitHub Actions tab.',
+        'warning'
+      );
+      return;
+    }
+
+    if (workflowTriggered) {
+      showStatus(
+        'Done! config.json committed to GitHub and a new search run has been triggered. ' +
+        'Check the Actions tab in your repo for progress (usually takes 2-5 minutes).',
+        'ok'
+      );
+    }
+  } catch (err) {
+    showStatus('Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Boot
+// ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadGhSettingsIntoForm();
+  // Auto-load config.json if available
+  loadCurrentConfig();
+});
+</script>
+</body>
+</html>
