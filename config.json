@@ -118,5 +118,6 @@
   "hours_old": 168,
   "min_keywords": 3,
   "site_title": "My Job Search",
-  "country": "Netherlands"
+  "country": "Netherlands",
+  "desired_score": 0
 }

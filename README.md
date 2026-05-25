@@ -12,8 +12,8 @@ Once deployed, your dashboard looks like this:
 
 | Page | What it shows |
 |---|---|
-| `index.html` | Ranked job cards, colour-coded new vs returning, fit score bar |
-| `analytics.html` | Weekly trends, new-job curve, target-company chart |
+| `index.html` | Ranked job cards, colour-coded new vs returning, fit score bar, 🔥 top-match banner |
+| `analytics.html` | Weekly trends, new-job curve, target-company chart, desired-match history |
 | `settings.html` | Edit every filter, keyword, weight and search parameter in the browser — no code needed |
 
 ---
@@ -131,6 +131,18 @@ Tiers, weights, and keywords are fully configurable in Settings. The default set
 
 ---
 
+## Top-match notifications (desired fit score)
+
+Set a **desired fit score** threshold in Settings. When the daily run finds new jobs at or above that score:
+
+- Each matching card gets a red **★ Match** badge
+- A 🔥 banner at the top of the dashboard shows the count — e.g. *"🔥 3 top matches today (score ≥ 200)"*
+- Analytics tracks desired matches per week on a dedicated chart and stat card
+
+Set `desired_score` to `0` (default) to disable the feature entirely.
+
+---
+
 ## Settings reference
 
 All settings live in `config.json` (edited via `settings.html`).
@@ -148,6 +160,7 @@ All settings live in `config.json` (edited via `settings.html`).
 | `results_per_query` | Results fetched per search term per site (default 30) |
 | `hours_old` | Only include jobs posted within this many hours (default 168 = 7 days) |
 | `min_keywords` | Minimum total keyword matches required (default 3) |
+| `desired_score` | Highlight jobs at or above this score with a red ★ Match badge and daily banner; `0` = disabled |
 
 ---
 

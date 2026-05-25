@@ -197,6 +197,10 @@ SENIOR_TITLE_PATTERNS: list[str] = _cfg.get("senior_patterns", _DEFAULT_CONFIG["
 # Target companies — flagged with star and boosted in ranking
 TARGET_COMPANIES: list[str] = _cfg.get("target_companies", _DEFAULT_CONFIG["target_companies"])
 
+# Desired fit score — jobs at or above this score are highlighted as top matches.
+# 0 = disabled (no highlighting).
+DESIRED_SCORE: int = int(_cfg.get("desired_score", 0))
+
 
 # ─────────────────────────────────────────────────────────────────
 # SCRAPER
@@ -713,12 +717,19 @@ def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
         if r["is_target"]:
             target_per_week[week_key(r)] += 1
 
+    desired_per_week = {wk: 0 for wk in week_keys}
+    if DESIRED_SCORE > 0:
+        for r in accepted:
+            if (r["fit_score"] or 0) >= DESIRED_SCORE:
+                desired_per_week[week_key(r)] += 1
+
     total_accept = len(accepted)
     total_reject = len(rejected)
     avg_fit_all = (
         round(sum(r["fit_score"] or 0 for r in accepted) / total_accept, 2)
         if total_accept else 0
     )
+    total_desired = sum(desired_per_week.values())
 
     return {
         "jobs_per_week":     [jobs_per_week[wk] for wk in week_keys],
@@ -726,6 +737,7 @@ def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
         "rolling_avg":       rolling_avg,
         "avg_fit_per_week":  avg_fit_per_week,
         "target_per_week":   [target_per_week[wk] for wk in week_keys],
+        "desired_per_week":  [desired_per_week[wk] for wk in week_keys],
         "cat_per_week":      {cat: [cat_per_week[wk][cat] for wk in week_keys] for cat in all_categories},
         "src_per_week":      {src: [src_per_week[wk][src] for wk in week_keys] for src in sources},
         "top_companies":     [{"company": c, "count": n} for c, n in top_companies],
@@ -735,6 +747,7 @@ def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
             "total_accepted": total_accept,
             "total_rejected": total_reject,
             "avg_fit":        avg_fit_all,
+            "total_desired":  total_desired,
         },
     }
 
@@ -835,14 +848,16 @@ def _load_analytics_data() -> dict:
         parsed = datetime.strptime(fs_date, "%Y-%m-%d")
         iso = parsed.isocalendar()
         fsw = f"{iso[0]}-W{iso[1]:02d}"
+        sc = round(r["fit_score"] or 0, 1)
         job_records.append({
             "wk":  f"{r['year']}-W{r['week_number']:02d}",
-            "sc":  round(r["fit_score"] or 0, 1),
+            "sc":  sc,
             "cat": r["category"] or "General Control",
             "tgt": 1 if r["is_target"] else 0,
             "src": (r["site"] or "other").lower(),
             "co":  (r["company"] or "Unknown").strip(),
             "fsw": fsw,
+            "ds":  1 if (DESIRED_SCORE > 0 and sc >= DESIRED_SCORE) else 0,
         })
 
     return {
@@ -851,6 +866,7 @@ def _load_analytics_data() -> dict:
         "control_theory": control,
         "control_theory_categories": sorted(_CONTROL_THEORY_CATEGORIES),
         "job_records":    job_records,
+        "desired_score":  DESIRED_SCORE,
     }
 
 
@@ -1201,6 +1217,13 @@ footer {{
       </div>
     </div>
 
+    <div class="chart-card" id="chartDesiredCard" style="display:none;">
+      <h3>Desired matches per week (score &ge; desired threshold)</h3>
+      <div class="chart-wrap">
+        <canvas id="chartDesired"></canvas>
+      </div>
+    </div>
+
     <div class="chart-card">
       <h3>Match rate: accepted / (accepted + rejected) per week</h3>
       <div class="chart-wrap">
@@ -1268,10 +1291,11 @@ footer {{
 
 <script>
 // ── Embedded analytics payload ────────────────────────────────────
-// DATA shape: {{ week_labels, all: {{...}}, control_theory: {{...}} }}
+// DATA shape: {{ week_labels, all: {{...}}, control_theory: {{...}}, desired_score }}
 const DATA = {data_json};
 const CAT_COLORS = {cat_colors_json};
 const SRC_COLORS = {src_colors_json};
+const DESIRED_SCORE = (DATA && DATA.desired_score) ? DATA.desired_score : 0;
 
 // ── View state ────────────────────────────────────────────────────
 // VIEW = active aggregation (DATA.all or DATA.control_theory)
@@ -1391,6 +1415,9 @@ function renderStatCards() {{
     else                trendHtml = `<span class="stat-trend flat">&#8212; no change</span>`;
   }}
 
+  const slDesired = DESIRED_SCORE > 0 ? sl(VIEW.desired_per_week || []) : [];
+  const totalDesired = slDesired.reduce((a, b) => a + b, 0);
+
   const s = VIEW.summary;
   const rangeLabel = `${{DATA.week_labels[RANGE[0]]}} – ${{DATA.week_labels[RANGE[1]]}}`;
 
@@ -1420,6 +1447,11 @@ function renderStatCards() {{
       <div class="stat-value">${{totalTarget}}</div>
       <div class="stat-label">Target company hits</div>
     </div>
+    ${{DESIRED_SCORE > 0 ? `
+    <div class="stat-card">
+      <div class="stat-value" style="color:#c0392b;">${{totalDesired}}</div>
+      <div class="stat-label">Desired matches (score &ge; ${{DESIRED_SCORE}})</div>
+    </div>` : ''}}
   `;
 }}
 
@@ -1664,6 +1696,34 @@ function buildChartTarget() {{
   }});
 }}
 
+// ── Chart: Desired matches per week ──────────────────────────────
+function buildChartDesired() {{
+  const card = document.getElementById('chartDesiredCard');
+  if (!hasData || DESIRED_SCORE <= 0) {{
+    if (card) card.style.display = 'none';
+    return;
+  }}
+  if (card) card.style.display = '';
+  CHARTS.desired = new Chart(document.getElementById('chartDesired'), {{
+    type: 'line',
+    data: {{
+      labels: sl(DATA.week_labels),
+      datasets: [{{
+        label: `Desired matches (score ≥ ${{DESIRED_SCORE}})`,
+        data: sl(VIEW.desired_per_week || []),
+        borderColor: '#c0392b',
+        backgroundColor: '#c0392b22',
+        borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
+      }}],
+    }},
+    options: {{
+      responsive: true, maintainAspectRatio: false,
+      plugins: {{ legend: {{ position: 'top' }} }},
+      scales: baseScales(false),
+    }},
+  }});
+}}
+
 // ── Chart 7: Match rate line ──────────────────────────────────────
 function buildChartRatio() {{
   if (!hasData) return;
@@ -1845,6 +1905,7 @@ function renderAll() {{
   buildChartTrend();
   buildChartFit();
   buildChartTarget();
+  buildChartDesired();
   buildChartRatio();
   buildChartCompanies();
   buildCompanyTable();
@@ -1869,13 +1930,14 @@ function _rebuildViewFromRecords(recs) {{
   DATA.week_labels.forEach((wk, i) => wkIdx[wk] = i);
   const n = DATA.week_labels.length;
 
-  const jobsArr   = new Array(n).fill(0);
-  const fitSum    = new Array(n).fill(0);
-  const fitCnt    = new Array(n).fill(0);
-  const tgtArr    = new Array(n).fill(0);
-  const catArr    = Object.fromEntries(_ALL_CATS.map(c => [c, new Array(n).fill(0)]));
-  const srcArr    = Object.fromEntries(_SRCS.map(s => [s, new Array(n).fill(0)]));
-  const coCounts  = {{}};
+  const jobsArr     = new Array(n).fill(0);
+  const fitSum      = new Array(n).fill(0);
+  const fitCnt      = new Array(n).fill(0);
+  const tgtArr      = new Array(n).fill(0);
+  const desiredArr  = new Array(n).fill(0);
+  const catArr      = Object.fromEntries(_ALL_CATS.map(c => [c, new Array(n).fill(0)]));
+  const srcArr      = Object.fromEntries(_SRCS.map(s => [s, new Array(n).fill(0)]));
+  const coCounts    = {{}};
 
   for (const r of recs) {{
     const i = wkIdx[r.wk];
@@ -1884,6 +1946,7 @@ function _rebuildViewFromRecords(recs) {{
     fitSum[i]  += r.sc;
     fitCnt[i]++;
     if (r.tgt) tgtArr[i]++;
+    if (DESIRED_SCORE > 0 && r.sc >= DESIRED_SCORE) desiredArr[i]++;
     const cat = _ALL_CATS.includes(r.cat) ? r.cat : "General Control";
     catArr[cat][i]++;
     const src = _SRCS.includes(r.src) ? r.src : "other";
@@ -1919,6 +1982,7 @@ function _rebuildViewFromRecords(recs) {{
     rolling_avg:       rolling,
     avg_fit_per_week:  avgFitArr,
     target_per_week:   tgtArr,
+    desired_per_week:  desiredArr,
     cat_per_week:      catArr,
     src_per_week:      srcArr,
     top_companies:     topCo,
@@ -1929,6 +1993,7 @@ function _rebuildViewFromRecords(recs) {{
       total_accepted: totalAcc,
       total_rejected: 0,
       avg_fit:        avgFitAll,
+      total_desired:  desiredArr.reduce((a, b) => a + b, 0),
       total_runs:     DATA.all?.summary?.total_runs || 0,
       last_run:       DATA.all?.summary?.last_run   || '',
     }},
@@ -2098,6 +2163,28 @@ def generate_site(df: pd.DataFrame):
         except Exception as exc:
             print(f"  [site] Could not query previously-seen jobs: {exc}")
 
+    # Count new jobs today that meet the desired score threshold (for banner)
+    desired_new_count = 0
+    if DESIRED_SCORE > 0 and not df.empty:
+        for _, row in df.iterrows():
+            title   = str(row.get("title",   "Unknown"))
+            company = str(row.get("company", "Unknown"))
+            link    = str(row.get("job_url", "#"))
+            jid     = _job_id(title, company, link)
+            if jid not in previously_seen and float(row.get("fit_score", 0)) >= DESIRED_SCORE:
+                desired_new_count += 1
+
+    # Notification banner (only shown when desired_score is active and there are matches)
+    banner_html = ""
+    if DESIRED_SCORE > 0 and desired_new_count > 0:
+        label = "top match" if desired_new_count == 1 else "top matches"
+        banner_html = (
+            f'<div class="top-match-banner">'
+            f'&#128293; {desired_new_count} new {label} today '
+            f'(score &ge; {DESIRED_SCORE})'
+            f'</div>'
+        )
+
     cards_html = ""
     if df.empty:
         cards_html = '<div class="empty"><p>No relevant jobs found today. Check back tomorrow.</p></div>'
@@ -2145,10 +2232,13 @@ def generate_site(df: pd.DataFrame):
                 f'</div>'
             )
 
+            is_desired = DESIRED_SCORE > 0 and score >= DESIRED_SCORE
+
             star_badge     = '<span class="badge badge-target">Target company</span>' if is_target else ""
             site_badge     = f'<span class="badge badge-{site_name}">{site_name.upper()}</span>'
             salary_badge   = f'<span class="badge badge-salary">{salary_str}</span>' if salary_str else ""
             newness_badge  = '<span class="badge badge-new">NEW</span>' if is_new else '<span class="badge badge-seen">Seen</span>'
+            desired_badge  = f'<span class="badge badge-desired">&#9733; Match</span>' if is_desired else ""
 
             # Card classes and inline style
             card_classes = "card"
@@ -2158,10 +2248,10 @@ def generate_site(df: pd.DataFrame):
                 card_classes += " returning-card"
 
             cards_html += f"""
-<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}">
+<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}">
   <div class="card-header">
     <h3><a href="{link}" target="_blank" rel="noopener">{title}</a></h3>
-    <div class="badges">{star_badge}{newness_badge}{site_badge}{salary_badge}</div>
+    <div class="badges">{desired_badge}{star_badge}{newness_badge}{site_badge}{salary_badge}</div>
   </div>
   <div class="card-meta">
     <span>{company}</span>
@@ -2258,8 +2348,15 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .badge-salary   {{ background: #f3e8ff; color: #6b21a8; }}
 .badge-new  {{ background: #dbeafe; color: #1d4ed8; }}
 .badge-seen {{ background: #dcfce7; color: #166534; }}
+.badge-desired {{ background: #fde8e8; color: #c0392b; border: 1px solid #e74c3c; font-weight: 700; }}
 .returning-card {{ background: #f0fff4 !important; border-left: 4px solid #28a745; }}
 .target-card.returning-card {{ border-left: 4px solid #f39c12; }}
+
+.top-match-banner {{
+  background: #fde8e8; border-bottom: 2px solid #e74c3c;
+  padding: 10px 32px; font-size: 13px; font-weight: 600; color: #c0392b;
+  display: flex; align-items: center; gap: 8px;
+}}
 
 .card-meta {{
   display: flex; flex-wrap: wrap; gap: 10px;
@@ -2322,6 +2419,8 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   </div>
 </header>
 
+{banner_html}
+
 <div class="stats">
   <div><strong>{total}</strong> jobs found</div>
   <div><strong>{target_n}</strong> target companies</div>
@@ -2357,6 +2456,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 </footer>
 
 <script>
+  const DESIRED_SCORE = {DESIRED_SCORE};
   let activeSite   = 'all';
   let targetOnly   = false;
   let newOnly      = false;

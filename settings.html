@@ -377,6 +377,13 @@ footer {
       </label>
       <input type="number" id="minKeywords" min="1" step="1" value="1" style="max-width:140px;">
     </div>
+    <div class="field" style="margin-top:18px;">
+      <label>
+        Desired fit score
+        <span class="hint">jobs at or above this score are highlighted as top matches; 0 = disabled</span>
+      </label>
+      <input type="number" id="desiredScore" min="0" step="1" value="0" style="max-width:140px;">
+    </div>
   </div>
 
   <!-- ── Config load status ─────────────────────────────────────── -->
@@ -567,6 +574,7 @@ function configFromForm() {
     results_per_query: parseInt(document.getElementById('resultsPerQuery').value, 10) || 30,
     hours_old:         parseInt(document.getElementById('hoursOld').value, 10)        || 168,
     min_keywords:      Math.max(1, parseInt(document.getElementById('minKeywords').value, 10) || 1),
+    desired_score:     parseInt(document.getElementById('desiredScore').value, 10)    || 0,
     site_title:        document.getElementById('siteTitle').value.trim() || 'My Job Search',
     country:           document.getElementById('country').value.trim()   || 'Netherlands',
   };
@@ -595,6 +603,7 @@ function populateForm(cfg) {
   document.getElementById('resultsPerQuery').value = cfg.results_per_query ?? 30;
   document.getElementById('hoursOld').value        = cfg.hours_old         ?? 168;
   document.getElementById('minKeywords').value     = cfg.min_keywords      ?? 1;
+  document.getElementById('desiredScore').value    = cfg.desired_score     ?? 0;
   document.getElementById('siteTitle').value       = cfg.site_title        ?? '';
   document.getElementById('country').value         = cfg.country           ?? '';
 }
