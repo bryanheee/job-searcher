@@ -213,7 +213,7 @@ footer {
 
     <div class="setup-section">
       <div class="field">
-        <label>GitHub username <span class="hint">e.g. oscarhe98</span></label>
+        <label>GitHub username <span class="hint">e.g. your-github-username</span></label>
         <input type="text" id="ghUser" placeholder="your-github-username" autocomplete="off">
       </div>
       <div class="field">
@@ -339,6 +339,22 @@ footer {
   <div class="card">
     <div class="card-title">Search Parameters</div>
     <div class="num-pair">
+      <div class="field">
+        <label>
+          Site title
+          <span class="hint">displayed in the browser tab and page header</span>
+        </label>
+        <input type="text" id="siteTitle" placeholder="My Job Search" style="max-width:320px;">
+      </div>
+      <div class="field">
+        <label>
+          Country
+          <span class="hint">country name passed to Indeed (e.g. Netherlands, Germany, USA)</span>
+        </label>
+        <input type="text" id="country" placeholder="Netherlands" style="max-width:240px;">
+      </div>
+    </div>
+    <div class="num-pair" style="margin-top:18px;">
       <div class="field">
         <label>
           Results per query
@@ -551,6 +567,8 @@ function configFromForm() {
     results_per_query: parseInt(document.getElementById('resultsPerQuery').value, 10) || 30,
     hours_old:         parseInt(document.getElementById('hoursOld').value, 10)        || 168,
     min_keywords:      Math.max(1, parseInt(document.getElementById('minKeywords').value, 10) || 1),
+    site_title:        document.getElementById('siteTitle').value.trim() || 'My Job Search',
+    country:           document.getElementById('country').value.trim()   || 'Netherlands',
   };
 }
 
@@ -577,6 +595,8 @@ function populateForm(cfg) {
   document.getElementById('resultsPerQuery').value = cfg.results_per_query ?? 30;
   document.getElementById('hoursOld').value        = cfg.hours_old         ?? 168;
   document.getElementById('minKeywords').value     = cfg.min_keywords      ?? 1;
+  document.getElementById('siteTitle').value       = cfg.site_title        ?? '';
+  document.getElementById('country').value         = cfg.country           ?? '';
 }
 
 // ──────────────────────────────────────────────────────────────────

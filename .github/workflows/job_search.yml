@@ -45,11 +45,7 @@ jobs:
           fi
 
       - name: Run job search and generate site
-        env:
-          EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
-        run: python job_searcher.py --site --save --email
+        run: python job_searcher.py --site --save
 
       # Push the updated jobs.db back to the data branch so it survives
       # across runs. This branch is separate from main and gh-pages.

@@ -1,124 +1,195 @@
-# Job Searcher — Control Systems NL (Indeed + LinkedIn)
+# Job Searcher — Automated Job Board with GitHub Pages
 
-Scrapes Indeed NL and LinkedIn daily, applies a multi-stage filter pipeline,
-scores each job by keyword depth, and outputs a ranked list with fit scores.
+Scrapes Indeed and LinkedIn daily, scores jobs by keyword relevance, and publishes a live dashboard to GitHub Pages — fully automated, zero server needed.
 
----
-
-## Setup
-
-```
-pip install python-jobspy pandas schedule
-```
+> Built for control systems / robotics roles in the Netherlands, but fully customisable for **any profession and any country** via the Settings page.
 
 ---
 
-## Usage
+## Live demo
 
-| Command | What it does |
+Once deployed, your dashboard looks like this:
+
+| Page | What it shows |
 |---|---|
-| `python job_searcher.py` | Search now, print to terminal |
-| `python job_searcher.py --save` | Search + save to CSV |
-| `python job_searcher.py --email` | Search + send email digest |
-| `python job_searcher.py --site` | Search + generate index.html |
-| `python job_searcher.py --site --save --email` | Full run (same as GitHub Actions) |
-| `python job_searcher.py --daily` | Run now + repeat daily at 08:00 |
+| `index.html` | Ranked job cards, colour-coded new vs returning, fit score bar |
+| `analytics.html` | Weekly trends, new-job curve, target-company chart |
+| `settings.html` | Edit every filter, keyword, weight and search parameter in the browser — no code needed |
+
+---
+
+## Deploy your own copy — step by step
+
+### 1. Fork or copy this repo
+
+Click **Fork** (top-right on GitHub) to get your own copy, **or**:
+
+```
+git clone https://github.com/ORIGINAL_OWNER/REPO_NAME.git my-job-searcher
+cd my-job-searcher
+git remote set-url origin https://github.com/YOUR_USERNAME/YOUR_NEW_REPO.git
+git push -u origin main
+```
+
+---
+
+### 2. Enable GitHub Pages
+
+1. Go to your repo → **Settings** → **Pages**
+2. Under *Source*, choose **Deploy from a branch**
+3. Branch: **`gh-pages`** / folder: `/ (root)`
+4. Click **Save**
+
+> The `gh-pages` branch is created automatically the first time the workflow runs. If Pages shows an error before that, just wait for the first run to finish.
+
+---
+
+### 3. Run the workflow for the first time
+
+1. Go to your repo → **Actions**
+2. Click **Daily Job Search** in the left sidebar
+3. Click **Run workflow** → **Run workflow** (green button)
+
+This takes ~1–2 minutes. When it completes, your Pages URL (`https://YOUR_USERNAME.github.io/YOUR_REPO/`) will show live job results.
+
+The workflow also runs automatically every day at **09:00 CET/CEST (07:00 UTC)** and whenever you push a change to `main`. To change the time, edit the `cron:` line in `.github/workflows/job_search.yml`.
+
+---
+
+### 4. Customise for your profession
+
+Open `https://YOUR_USERNAME.github.io/YOUR_REPO/settings.html` in your browser.
+
+**First thing to change:**
+
+| Field | Example |
+|---|---|
+| Site title | `Software Jobs NL`, `Mechanical Engineering NL`, `Finance Roles UK` |
+| Country | `Netherlands`, `Germany`, `United Kingdom`, `USA` |
+| Search queries | `software engineer`, `data scientist`, `mechanical design engineer` |
+
+Then edit the keyword tiers to match your field. Click **Save to GitHub** — the next workflow run picks up your new config automatically.
+
+> You need a GitHub Personal Access Token (PAT) to save from the browser. See step 5.
+
+---
+
+### 5. Create a GitHub Personal Access Token (PAT)
+
+The Settings page saves `config.json` back to your repo via the GitHub API. For this it needs a PAT.
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. Give it a name, e.g. `job-searcher-settings`
+4. Set expiration (90 days is fine; you can regenerate later)
+5. Tick the **`repo`** scope (full control of private repositories)
+6. Click **Generate token** and **copy it immediately** — you won't see it again
+
+Back on your Settings page (`settings.html`):
+- Paste your GitHub username, repo name (`YOUR_USERNAME/YOUR_REPO`), and PAT into the **GitHub connection** fields at the top
+- These are stored only in your browser (localStorage) — they are never committed to the repo
+
+---
+
+## How it works
+
+```
+GitHub Actions (daily cron)
+  └─ job_searcher.py --site --save
+       ├─ Scrapes Indeed + LinkedIn
+       ├─ Filters jobs through the pipeline
+       ├─ Scores each job by keyword depth
+       ├─ Writes results to jobs.db (persisted on a separate data-branch)
+       ├─ Generates index.html, analytics.html, settings.html
+       └─ Deploys to gh-pages branch → GitHub Pages serves it live
+```
 
 ---
 
 ## Filter pipeline
 
-Each job passes through four stages in order:
+Jobs pass through four stages in order. All parameters are editable in `settings.html`.
 
-1. **Seniority filter** — removes jobs with "senior", "lead", "principal", etc. in the title,
-   and titles containing "5+ years" patterns. Keeps entry/medior roles only.
-2. **Blacklist (title)** — removes jobs whose *title* contains PLC, SCADA, HMI,
-   field service, automation engineer, process engineer, HVAC, etc.
-3. **Blacklist (full text)** — removes jobs mentioning ladder logic, TIA Portal,
-   Siemens S7, oil & gas, building automation, etc. anywhere.
-4. **Gate** — job must contain at least one weight-2 or weight-3 keyword
-   (MATLAB, Simulink, control theory, mechatronics, robotics, etc.).
-   Pure "automation" or "precision" mentions without a control/robotics signal are rejected.
-
----
-
-## Fit score (0–10)
-
-After filtering, each job is scored by weighted keyword depth:
-
-| Weight | Examples |
+| Stage | What it does |
 |---|---|
-| 3 | MPC, robust control, H-infinity, Kalman, LQR/LQG, nonlinear control, state-space, GNC, system identification, Python, PyTorch |
-| 2 | MATLAB, Simulink, mechatronics, robotics, aerospace, servo, motion control, C++, ROS, dSpace, embedded control |
-| 1 | PID, control, high-tech, precision, sensor fusion, navigation, signal processing, UAV, satellite |
-
-Each keyword *group* contributes its weight at most once — a job with 20 weight-1
-hits does not beat one with 2 weight-3 hits.
-
-**Score = (sum of matched group weights / 6) * 10**
-
-Jobs are sorted: target companies first, then by fit score descending.
+| **Seniority filter** | Removes "senior", "lead", "principal", "manager", "5+ years", etc. from titles |
+| **Title blacklist** | Removes jobs whose title contains unwanted terms (e.g. PLC, SCADA, HMI) |
+| **Full-text blacklist** | Removes jobs mentioning unwanted phrases anywhere in the description |
+| **Keyword gate** | Job must match at least one high-weight keyword to pass |
 
 ---
 
-## Output format (terminal)
+## Fit score
+
+Each job is scored by **weighted keyword depth**:
 
 ```
-  1. *  Control Systems Engineer
-       Sioux Technologies | Eindhoven, NL | LINKEDIN
-       Fit: [########--] 8.3/10
-       Date: 25 May 2026
-       https://linkedin.com/jobs/view/...
-       Keywords: mpc, model predictive control, matlab, simulink, state-space
-
-  2.    Mechatronics Engineer (Medior)
-       Vanderlande | Veghel, NL | INDEED
-       Fit: [######----] 6.7/10
-       ...
+score = Σ (weight × number of unique keywords matched in that tier)
 ```
 
-`*` = target company (ASML, TMC, Sioux, NLR, Orange Aerospace, Demcon, etc.)
+Tiers, weights, and keywords are fully configurable in Settings. The default setup has three tiers (high / mid / low relevance). Jobs are sorted by score descending; target companies are always pinned to the top.
 
 ---
 
-## Email setup (Gmail)
+## Settings reference
 
-1. Go to myaccount.google.com > Security > App Passwords
-2. Generate a 16-character app password (requires 2FA)
-3. Set environment variables (or edit `job_searcher.py` directly):
-   - `EMAIL_SENDER`   — your Gmail address
-   - `EMAIL_PASSWORD` — the 16-character app password
-4. `EMAIL_RECEIVER` defaults to oscarhe1998@gmail.com
+All settings live in `config.json` (edited via `settings.html`).
 
----
-
-## GitHub Pages (automated)
-
-The included workflow (`.github/workflows/job_search.yml`) runs daily at 09:00
-Netherlands time. It:
-
-1. Runs `python job_searcher.py --site --save --email`
-2. Copies `index.html` into a clean `_site/` directory
-3. Deploys `_site/` to the `gh-pages` branch
-
-Only `index.html` is published — source code and CSV files are never exposed.
-
-Enable GitHub Pages in repo Settings > Pages > Deploy from `gh-pages` branch.
-
-Required GitHub Secrets: `EMAIL_SENDER`, `EMAIL_PASSWORD`, `EMAIL_RECEIVER`.
-
----
-
-## Customise in job_searcher.py
-
-| Variable | Purpose |
+| Setting | Purpose |
 |---|---|
-| `SEARCH_QUERIES` | Search terms sent to Indeed + LinkedIn |
-| `SCORED_KEYWORDS` | Tiered keyword weights (3/2/1) — core of the scoring |
-| `GATE_KEYWORDS` | Derived from weight-2/3; job must match at least one |
-| `BLACKLIST_TITLE` | Excluded if match is in the job *title* |
-| `BLACKLIST_FULL` | Excluded if match appears anywhere in text |
-| `SENIOR_TITLE_PATTERNS` | Regex patterns for seniority signals in title |
-| `TARGET_COMPANIES` | Flagged with `*` and sorted to top |
-| `RESULTS_PER_QUERY` | Results per query per site (default 30) |
-| `HOURS_OLD` | Only jobs posted within this many hours (default 168 = 7 days) |
+| `site_title` | Page title shown in the browser tab and header |
+| `country` | Country passed to Indeed (e.g. `Netherlands`, `Germany`, `USA`) |
+| `search_queries` | Search terms sent to Indeed + LinkedIn |
+| `scored_keywords` | Tiered keyword groups with weights — core of the scoring |
+| `blacklist_title` | Terms that disqualify a job if found in the title |
+| `blacklist_full` | Terms that disqualify a job if found anywhere in the text |
+| `senior_patterns` | Regex patterns for seniority signals in the title |
+| `target_companies` | Pinned to top of results and marked with `★` |
+| `results_per_query` | Results fetched per search term per site (default 30) |
+| `hours_old` | Only include jobs posted within this many hours (default 168 = 7 days) |
+| `min_keywords` | Minimum total keyword matches required (default 3) |
+
+---
+
+## Local usage (optional — not required)
+
+> **You don't need this.** The tool runs fully automatically via GitHub Actions — just fork, run the workflow once, and you're done. Local usage is only useful if you want to test changes before pushing, or if you prefer to run it without GitHub.
+
+If you do want to run it on your own machine:
+
+```bash
+pip install python-jobspy pandas schedule
+```
+
+| Command | What it does |
+|---|---|
+| `python job_searcher.py` | Search now, print results to terminal |
+| `python job_searcher.py --save` | Search + save results to CSV |
+| `python job_searcher.py --site` | Search + generate HTML dashboard |
+| `python job_searcher.py --site --save` | Full run (same as GitHub Actions) |
+| `python job_searcher.py --daily` | Run now + repeat daily at 08:00 |
+
+> **Windows note:** if `pip install python-jobspy` fails with a numpy compile error, run `conda install numpy pandas -y` first (if you have Anaconda/Miniconda), then `pip install python-jobspy --no-deps`.
+
+---
+
+## Resetting the job history
+
+To clear the database and start fresh (all jobs will appear as "new"):
+
+1. Go to your repo → **Actions** → find any completed run → look at the **data-branch** commit
+2. Or: delete the `data-branch` branch entirely from your repo (Settings → Branches → delete `data-branch`)
+
+The next workflow run creates a new empty `jobs.db`.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Pages shows the README instead of the dashboard | The workflow hasn't run yet. Go to Actions → run it manually once. |
+| "gh-pages branch not found" error in Pages settings | Same — run the workflow first, then set the Pages source. |
+| Settings page says "Failed to save" | Check your PAT has the `repo` scope and hasn't expired. |
+| No jobs appear | Your keyword gate may be too strict, or the search query returns nothing. Lower `min_keywords` to 1 in Settings and check the terminal output locally. |
+| Workflow fails on `pip install` | See the Windows numpy note above, or check the Actions log for the exact error. |

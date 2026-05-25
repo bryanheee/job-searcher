@@ -1,29 +1,25 @@
 """
 job_searcher.py
 ---------------
-Automated job searcher for control systems / mechatronics / GNC roles in the Netherlands.
-Scrapes both Indeed NL and LinkedIn, scores each job on keyword depth and seniority,
-blacklists PLC/SCADA/field-service, and outputs a ranked list with a fit score.
+Automated job searcher — scrapes Indeed and LinkedIn, scores each job by weighted
+keyword depth, filters by seniority/blacklists/keyword gate, and outputs a ranked list.
 
-Also maintains a persistent SQLite database (jobs.db) that accumulates every scrape run,
-storing matched jobs AND rejected jobs with rejection reasons. Generates analytics.html
-with trend charts powered by Chart.js.
+Maintains a persistent SQLite database (jobs.db) that accumulates every scrape run,
+storing matched jobs AND rejected jobs with rejection reasons. Generates a static
+GitHub Pages dashboard: index.html, analytics.html, settings.html.
+
+All settings (country, site title, keywords, weights, blacklists, etc.) are configured
+in config.json — editable from the browser via settings.html without touching code.
 
 Setup:
     pip install python-jobspy pandas schedule
 
-Email setup (Gmail):
-    1. Go to myaccount.google.com > Security > App Passwords
-    2. Create an app password for "Mail"
-    3. Set environment variables EMAIL_SENDER, EMAIL_PASSWORD  (or fill in below)
-
 Usage:
     python job_searcher.py              # print to terminal
-    python job_searcher.py --email      # also send email digest
     python job_searcher.py --save       # also save to CSV
-    python job_searcher.py --site       # also generate index.html for GitHub Pages
+    python job_searcher.py --site       # also generate HTML dashboard
+    python job_searcher.py --site --save  # full run (same as GitHub Actions)
     python job_searcher.py --daily      # run once now + schedule daily at 08:00
-    python job_searcher.py --site --save --email   # full run
 """
 
 import os
@@ -33,13 +29,10 @@ import hashlib
 import sqlite3
 import json
 import pandas as pd
-import smtplib
 import schedule
 import time
 import argparse
 from jobspy import scrape_jobs
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 
 # ─────────────────────────────────────────────────────────────────
@@ -52,6 +45,8 @@ DB_PATH     = os.path.join(OUTPUT_DIR, "jobs.db")
 CONFIG_PATH = os.path.join(OUTPUT_DIR, "config.json")
 
 _DEFAULT_CONFIG: dict = {
+    "site_title": "My Job Search",
+    "country":    "Netherlands",
     "search_queries": [
         "control systems engineer",
         "mechatronics engineer",
@@ -172,7 +167,8 @@ _cfg = load_config()
 
 SEARCH_QUERIES: list[str] = _cfg.get("search_queries", _DEFAULT_CONFIG["search_queries"])
 
-LOCATION          = "Netherlands"
+LOCATION:     str = _cfg.get("country",    _DEFAULT_CONFIG["country"])
+SITE_TITLE:   str = _cfg.get("site_title", _DEFAULT_CONFIG["site_title"])
 RESULTS_PER_QUERY: int = int(_cfg.get("results_per_query", _DEFAULT_CONFIG["results_per_query"]))
 HOURS_OLD:         int = int(_cfg.get("hours_old",         _DEFAULT_CONFIG["hours_old"]))
 MIN_KEYWORDS:      int = max(0, int(_cfg.get("min_keywords", _DEFAULT_CONFIG["min_keywords"])))
@@ -201,10 +197,6 @@ SENIOR_TITLE_PATTERNS: list[str] = _cfg.get("senior_patterns", _DEFAULT_CONFIG["
 # Target companies — flagged with star and boosted in ranking
 TARGET_COMPANIES: list[str] = _cfg.get("target_companies", _DEFAULT_CONFIG["target_companies"])
 
-# ── Email ──────────────────────────────────────────────────────────
-EMAIL_SENDER   = os.environ.get("EMAIL_SENDER",   "your_gmail@gmail.com")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "your_app_password_here")
-EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER", "oscarhe1998@gmail.com")
 
 # ─────────────────────────────────────────────────────────────────
 # SCRAPER
@@ -222,7 +214,7 @@ def scrape_all() -> pd.DataFrame:
                 search_term                = query,
                 location                   = LOCATION,
                 results_wanted             = RESULTS_PER_QUERY,
-                country_indeed             = "Netherlands",
+                country_indeed             = LOCATION,
                 linkedin_fetch_description = True,
                 hours_old                  = HOURS_OLD,
             )
@@ -906,7 +898,7 @@ def generate_analytics():
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Job Search Analytics — Control Systems NL</title>
+<title>Analytics — {SITE_TITLE}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -1102,7 +1094,7 @@ footer {{
 
 <header>
   <div>
-    <h1>Job Search Analytics — Control Systems NL</h1>
+    <h1>Analytics — {SITE_TITLE}</h1>
     <p>Updated: {updated} &nbsp;|&nbsp; Data from jobs.db — all scrape runs accumulated</p>
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -2061,108 +2053,6 @@ def print_results(df: pd.DataFrame):
         print()
 
 
-# ─────────────────────────────────────────────────────────────────
-# EMAIL
-# ─────────────────────────────────────────────────────────────────
-
-def _score_color(score: float) -> str:
-    if score >= 0.4 * _MAX_POSSIBLE_SCORE:
-        return "#1e7e34"  # green
-    if score >= 0.2 * _MAX_POSSIBLE_SCORE:
-        return "#856404"  # amber
-    return "#721c24"      # red
-
-
-def build_email_html(df: pd.DataFrame) -> str:
-    date_str  = datetime.now().strftime("%Y-%m-%d")
-    target_n  = int(df["is_target"].sum()) if not df.empty else 0
-    high_fit  = int((df["fit_score"] >= 0.4 * _MAX_POSSIBLE_SCORE).sum()) if not df.empty else 0
-
-    html = f"""
-<html><body style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-<h2 style="color:#1a3a5c;">Control Systems Job Alert — {date_str}</h2>
-<p>Found <b>{len(df)}</b> relevant jobs &nbsp;|&nbsp;
-   <b>{target_n}</b> target companies &nbsp;|&nbsp;
-   <b>{high_fit}</b> high fit (score &ge; {0.4 * _MAX_POSSIBLE_SCORE:.0f})
-</p>
-<p style="color:#888; font-size:12px;">
-  Filters: fresh grad (no senior/lead), PLC/SCADA/HMI blacklisted,
-  gate requires MATLAB/Simulink/control/robotics signal.
-  Score = raw weighted keyword depth (max {_MAX_POSSIBLE_SCORE:.0f}).
-</p>
-<hr>
-"""
-
-    if df.empty:
-        html += "<p>No new relevant jobs found today.</p>"
-    else:
-        for i, (_, row) in enumerate(df.iterrows(), 1):
-            is_target = bool(row.get("is_target", False))
-            score     = float(row.get("fit_score", 0))
-            border    = "#f39c12" if is_target else "#cccccc"
-            star      = "* " if is_target else ""
-            title     = str(row.get("title",    "Unknown"))
-            company   = str(row.get("company",  "Unknown"))
-            location  = str(row.get("location", ""))
-            site      = str(row.get("site",     "")).upper()
-            link      = str(row.get("job_url",  "#"))
-            date      = _format_date(row)
-            keywords  = ", ".join(row.get("matched_keywords", [])[:6])
-            summary   = str(row.get("description", ""))[:250].strip()
-            if summary:
-                summary += "..."
-            score_col = _score_color(score)
-
-            html += f"""
-<div style="border-left:4px solid {border}; padding:10px 15px;
-            margin:14px 0; background:#f9f9f9; border-radius:4px;">
-  <div style="font-size:11px; color:#888;">#{i} &mdash; {site} &mdash; {date}</div>
-  <h3 style="margin:4px 0; color:#1a3a5c; font-size:16px;">{star}{title}</h3>
-  <p style="margin:3px 0; font-weight:bold; font-size:14px;">{company}</p>
-  <p style="margin:3px 0; color:#555; font-size:13px;">{location}</p>
-  <p style="margin:6px 0; font-size:13px;">
-    Fit score: <b style="color:{score_col};">{score}</b>
-  </p>
-  <p style="margin:3px 0; color:#555; font-size:12px;">{summary}</p>
-  <p style="margin:3px 0; font-size:12px; color:#888;">Keywords: {keywords}</p>
-  <a href="{link}" style="color:#2980b9; font-size:13px; font-weight:500;">View posting</a>
-</div>
-"""
-
-    html += """
-<hr>
-<p style="color:#aaa; font-size:11px;">
-  Generated by job_searcher.py &nbsp;|&nbsp;
-  Edit SCORED_KEYWORDS / BLACKLIST_TITLE / TARGET_COMPANIES to tune.
-</p>
-</body></html>
-"""
-    return html
-
-
-def send_email(df: pd.DataFrame):
-    if EMAIL_SENDER == "your_gmail@gmail.com":
-        print("\n[!] Email not configured — set EMAIL_SENDER and EMAIL_PASSWORD env vars.")
-        return
-
-    target_n = int(df["is_target"].sum()) if not df.empty else 0
-    subject  = (
-        f"Control Jobs NL — {len(df)} results, {target_n} target "
-        f"({datetime.now().strftime('%Y-%m-%d')})"
-    )
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = EMAIL_SENDER
-    msg["To"]      = EMAIL_RECEIVER
-    msg.attach(MIMEText(build_email_html(df), "html"))
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
-        print(f"\n[OK] Email sent to {EMAIL_RECEIVER}")
-    except Exception as exc:
-        print(f"\n[!] Email failed: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -2293,7 +2183,7 @@ def generate_site(df: pd.DataFrame):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control Systems Jobs NL</title>
+<title>{SITE_TITLE}</title>
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -2423,8 +2313,8 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 
 <header>
   <div>
-    <h1>Control Systems Jobs — Netherlands</h1>
-    <p>Updated: {updated} &nbsp;|&nbsp; Filters: no senior/lead, no PLC/SCADA/HMI, gate requires MATLAB/control/robotics signal</p>
+    <h1>{SITE_TITLE}</h1>
+    <p>Updated: {updated}</p>
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
     <a class="nav-link" href="analytics.html">Analytics Dashboard</a>
@@ -2543,7 +2433,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 # MAIN
 # ─────────────────────────────────────────────────────────────────
 
-def run_search(send_mail: bool = False, save: bool = False, make_site: bool = False):
+def run_search(save: bool = False, make_site: bool = False):
     run_dt = datetime.now()
     print(f"\n[{run_dt.strftime('%Y-%m-%d %H:%M')}] Starting job search...")
 
@@ -2563,8 +2453,6 @@ def run_search(send_mail: bool = False, save: bool = False, make_site: bool = Fa
     # Always persist to DB (regardless of --site / --save flags)
     save_to_db(filtered_df, raw_df, accepted_ids, run_dt)
 
-    if send_mail:
-        send_email(filtered_df)
     if save:
         save_results(filtered_df)
     if make_site:
@@ -2572,16 +2460,16 @@ def run_search(send_mail: bool = False, save: bool = False, make_site: bool = Fa
         generate_analytics()
 
 
-def run_daily(send_mail: bool = False):
+def run_daily():
     """Run once immediately, then schedule daily at 08:00 local time.
     NOTE: If you are using GitHub Actions, you do not need --daily.
     The workflow already handles scheduling via cron.
     """
     print("Daily scheduler started. Runs every day at 08:00 local time.")
     print("Press Ctrl+C to stop.\n")
-    run_search(send_mail=send_mail, save=True, make_site=True)
+    run_search(save=True, make_site=True)
     schedule.every().day.at("08:00").do(
-        run_search, send_mail=send_mail, save=True, make_site=True
+        run_search, save=True, make_site=True
     )
     while True:
         schedule.run_pending()
@@ -2590,9 +2478,8 @@ def run_daily(send_mail: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Control Systems Job Searcher — Indeed NL + LinkedIn"
+        description="Job Searcher — Indeed + LinkedIn"
     )
-    parser.add_argument("--email",     action="store_true", help="Send HTML email digest")
     parser.add_argument("--save",      action="store_true", help="Save results to CSV")
     parser.add_argument("--site",      action="store_true", help="Generate index.html + analytics.html for GitHub Pages")
     parser.add_argument("--daily",     action="store_true", help="Run now + schedule daily at 08:00")
@@ -2600,9 +2487,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.analytics:
-        # Regenerate analytics from existing DB without scraping
         generate_analytics()
     elif args.daily:
-        run_daily(send_mail=args.email)
+        run_daily()
     else:
-        run_search(send_mail=args.email, save=args.save, make_site=args.site)
+        run_search(save=args.save, make_site=args.site)
