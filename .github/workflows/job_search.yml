@@ -1,0 +1,90 @@
+name: Daily Control Systems Job Search
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC = 09:00 Netherlands (CEST); adjust to 08:00 in winter
+  workflow_dispatch:        # manual trigger from GitHub UI
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  search-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch the full history so jobs.db on the data branch can be restored
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install python-jobspy pandas schedule
+
+      # Restore jobs.db from the data branch (if it exists) so history accumulates.
+      # The data branch holds only jobs.db and is never deployed to GitHub Pages.
+      - name: Restore jobs.db from data branch
+        run: |
+          git fetch origin data-branch 2>/dev/null || true
+          if git show-ref --quiet refs/remotes/origin/data-branch; then
+            git checkout origin/data-branch -- jobs.db 2>/dev/null || true
+            echo "Restored jobs.db from data-branch"
+          else
+            echo "No data-branch yet — starting fresh jobs.db"
+          fi
+
+      - name: Run job search and generate site
+        env:
+          EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+        run: python job_searcher.py --site --save --email
+
+      # Push the updated jobs.db back to the data branch so it survives
+      # across runs. This branch is separate from main and gh-pages.
+      - name: Persist jobs.db to data branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Create an orphan data-branch if it doesn't exist yet
+          if git show-ref --quiet refs/remotes/origin/data-branch; then
+            git checkout origin/data-branch -b data-branch 2>/dev/null || git checkout data-branch
+          else
+            git checkout --orphan data-branch
+            git rm -rf . --quiet 2>/dev/null || true
+          fi
+          cp $GITHUB_WORKSPACE/jobs.db jobs.db 2>/dev/null || true
+          git add jobs.db
+          git commit -m "Update jobs.db — run ${{ github.run_id }}" || echo "No changes to commit"
+          git push origin data-branch
+          # Return to main so subsequent steps work correctly
+          git checkout ${{ github.ref_name }} 2>/dev/null || git checkout main
+
+      # Copy the generated HTML pages and config.json into a clean publish directory.
+      # config.json is needed by settings.html so the page can show the current config.
+      # Python source, CSV files, and jobs.db are never exposed.
+      - name: Prepare publish directory
+        run: |
+          mkdir -p _site
+          cp index.html     _site/index.html
+          cp analytics.html _site/analytics.html
+          cp settings.html  _site/settings.html
+          # config.json must exist (job_searcher.py writes defaults if absent)
+          cp config.json    _site/config.json
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
+          keep_files: false
+          commit_message: "Daily job update — ${{ github.run_id }}"
