@@ -95,6 +95,13 @@ textarea.short { min-height: 70px; }
 .tier-3 { background: #d4edda; color: #155724; }
 .tier-2 { background: #cce5ff; color: #004085; }
 .tier-1 { background: #fff3cd; color: #856404; }
+.tier-remove {
+  margin-left: auto; padding: 4px 10px; font-size: 12px; font-weight: 600;
+  border: 1px solid #dc3545; border-radius: 5px; background: white;
+  color: #dc3545; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.tier-remove:hover:not(:disabled) { background: #dc3545; color: white; }
+.tier-remove:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Buttons ──────────────────────────────────────────────────── */
 .btn-row {
@@ -263,37 +270,18 @@ footer {
 
   <!-- ── Keyword Tiers ──────────────────────────────────────────── -->
   <div class="card">
-    <div class="card-title">Scored Keywords</div>
+    <div class="card-title">Keyword Tiers (weight &times; unique matches = score contribution)</div>
     <div class="card-subtitle">
-      One keyword/phrase per line in each tier. Each tier contributes its weight at most once
-      per job — so a job with 20 weight-1 hits does not beat one with 2 weight-3 hits.
+      One keyword/phrase per line per tier. Score contribution = weight &times; number of unique keywords matched in that tier.
+      Add tiers with any weight; remove tiers you don't need (at least one must remain).
     </div>
 
-    <div class="tier-block">
-      <div class="tier-header">
-        <span class="tier-badge tier-3">Weight 3</span>
-        <span style="font-size:12px; color:#555;">Core skills — strongest signal (MPC, Kalman, LQR, Python, PyTorch, GNC…)</span>
-      </div>
-      <textarea id="kw3" class="tall"
-        placeholder="mpc&#10;model predictive control&#10;kalman&#10;lqr"></textarea>
+    <div id="tierList">
+      <!-- Tier rows injected by JS -->
     </div>
 
-    <div class="tier-block">
-      <div class="tier-header">
-        <span class="tier-badge tier-2">Weight 2</span>
-        <span style="font-size:12px; color:#555;">Strong matches — domain &amp; toolchain (MATLAB, Simulink, robotics, aerospace…)</span>
-      </div>
-      <textarea id="kw2" class="tall"
-        placeholder="matlab&#10;simulink&#10;robotics&#10;mechatronics"></textarea>
-    </div>
-
-    <div class="tier-block">
-      <div class="tier-header">
-        <span class="tier-badge tier-1">Weight 1</span>
-        <span style="font-size:12px; color:#555;">Broad supporting signals (control, precision, PID, UAV, satellite…)</span>
-      </div>
-      <textarea id="kw1" class="tall"
-        placeholder="control&#10;automation&#10;pid&#10;precision"></textarea>
+    <div style="margin-top: 12px;">
+      <button class="btn btn-secondary" onclick="addTier()">+ Add tier</button>
     </div>
   </div>
 
@@ -365,6 +353,13 @@ footer {
         </label>
         <input type="number" id="hoursOld" min="24" max="720" step="24" value="168">
       </div>
+    </div>
+    <div class="field" style="margin-top:18px;">
+      <label>
+        Minimum keyword groups
+        <span class="hint">a job must match at least N distinct keyword groups (across all tiers) to be accepted. 1 = current behaviour.</span>
+      </label>
+      <input type="number" id="minKeywords" min="1" max="10" step="1" value="1" style="max-width:140px;">
     </div>
   </div>
 
@@ -480,34 +475,99 @@ function linesToTextarea(id, arr) {
   document.getElementById(id).value = (arr || []).join('\n');
 }
 
+// ──────────────────────────────────────────────────────────────────
+// Dynamic keyword tier editor
+// ──────────────────────────────────────────────────────────────────
+let _tierCounter = 0;
+
+function _makeTierRow(weight, keywords) {
+  const id = ++_tierCounter;
+  const div = document.createElement('div');
+  div.className = 'tier-block';
+  div.dataset.tierId = id;
+  div.innerHTML = `
+    <div class="tier-header">
+      <label for="tierWeight_${id}" style="white-space:nowrap;">Tier — weight:</label>
+      <input type="number" id="tierWeight_${id}" class="tier-weight-input"
+             value="${weight}" min="0.1" step="0.1"
+             style="width:68px; flex-shrink:0;">
+      <button class="tier-remove" onclick="removeTier(${id})" title="Remove this tier">Remove</button>
+    </div>
+    <textarea id="tierKw_${id}" class="tall"
+              placeholder="one keyword or phrase per line">${(keywords || []).join('\n')}</textarea>
+  `;
+  return div;
+}
+
+function _refreshRemoveButtons() {
+  const rows = document.querySelectorAll('#tierList .tier-block');
+  rows.forEach(row => {
+    const btn = row.querySelector('.tier-remove');
+    if (btn) btn.disabled = rows.length <= 1;
+  });
+}
+
+function addTier(weight, keywords) {
+  const list = document.getElementById('tierList');
+  list.appendChild(_makeTierRow(weight || 1, keywords || []));
+  _refreshRemoveButtons();
+}
+
+function removeTier(id) {
+  const rows = document.querySelectorAll('#tierList .tier-block');
+  if (rows.length <= 1) return; // never remove the last tier
+  const row = document.querySelector(`#tierList .tier-block[data-tier-id="${id}"]`);
+  if (row) row.remove();
+  _refreshRemoveButtons();
+}
+
+function _getTierData() {
+  // Returns [{weight, keywords}] for all current tier rows, skipping empty ones
+  const rows = document.querySelectorAll('#tierList .tier-block');
+  const result = [];
+  rows.forEach(row => {
+    const id = row.dataset.tierId;
+    const weightVal = parseFloat(document.getElementById(`tierWeight_${id}`).value);
+    const weight = isNaN(weightVal) || weightVal <= 0 ? 1 : weightVal;
+    const keywords = document.getElementById(`tierKw_${id}`).value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    if (keywords.length > 0) {
+      result.push({ weight, keywords });
+    }
+  });
+  return result;
+}
+
 function configFromForm() {
   return {
     search_queries:   textareaLines('searchQueries'),
-    scored_keywords: [
-      { weight: 3, keywords: textareaLines('kw3') },
-      { weight: 2, keywords: textareaLines('kw2') },
-      { weight: 1, keywords: textareaLines('kw1') },
-    ],
+    scored_keywords:  _getTierData(),
     blacklist_title:  textareaLines('blacklistTitle'),
     blacklist_full:   textareaLines('blacklistFull'),
     senior_patterns:  textareaLines('seniorPatterns'),
     target_companies: textareaLines('targetCompanies'),
     results_per_query: parseInt(document.getElementById('resultsPerQuery').value, 10) || 30,
     hours_old:         parseInt(document.getElementById('hoursOld').value, 10)        || 168,
+    min_keywords:      Math.max(1, parseInt(document.getElementById('minKeywords').value, 10) || 1),
   };
 }
 
 function populateForm(cfg) {
   linesToTextarea('searchQueries', cfg.search_queries  || []);
 
-  // scored_keywords is [{weight, keywords}]
-  const tiers = (cfg.scored_keywords || []).reduce((acc, t) => {
-    acc[t.weight] = t.keywords;
-    return acc;
-  }, {});
-  linesToTextarea('kw3', tiers[3] || []);
-  linesToTextarea('kw2', tiers[2] || []);
-  linesToTextarea('kw1', tiers[1] || []);
+  // Build tier rows from scored_keywords array
+  const list = document.getElementById('tierList');
+  list.innerHTML = '';
+  _tierCounter = 0;
+  const tiers = cfg.scored_keywords || [];
+  if (tiers.length === 0) {
+    addTier(1, []);
+  } else {
+    tiers.forEach(t => addTier(t.weight, t.keywords || []));
+  }
+  _refreshRemoveButtons();
 
   linesToTextarea('blacklistTitle',  cfg.blacklist_title  || []);
   linesToTextarea('blacklistFull',   cfg.blacklist_full   || []);
@@ -516,6 +576,7 @@ function populateForm(cfg) {
 
   document.getElementById('resultsPerQuery').value = cfg.results_per_query ?? 30;
   document.getElementById('hoursOld').value        = cfg.hours_old         ?? 168;
+  document.getElementById('minKeywords').value     = cfg.min_keywords      ?? 1;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -685,9 +746,7 @@ async function saveAndTrigger() {
 
     // Validate
     if (!cfg.search_queries.length)   throw new Error('Search queries list is empty.');
-    if (!cfg.scored_keywords[0].keywords.length &&
-        !cfg.scored_keywords[1].keywords.length &&
-        !cfg.scored_keywords[2].keywords.length) {
+    if (!cfg.scored_keywords.length || cfg.scored_keywords.every(t => !t.keywords.length)) {
       throw new Error('All keyword tiers are empty — the scorer will match nothing.');
     }
 
@@ -729,7 +788,9 @@ async function saveAndTrigger() {
 // ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadGhSettingsIntoForm();
-  // Auto-load config.json if available
+  // Seed tier list with one blank row so the editor is usable before config loads
+  addTier(1, []);
+  // Auto-load config.json if available (will replace the seed row)
   loadCurrentConfig();
 });
 </script>

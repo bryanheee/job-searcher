@@ -133,6 +133,7 @@ _DEFAULT_CONFIG: dict = {
     ],
     "results_per_query": 30,
     "hours_old": 168,
+    "min_keywords": 1,
 }
 
 
@@ -174,11 +175,12 @@ SEARCH_QUERIES: list[str] = _cfg.get("search_queries", _DEFAULT_CONFIG["search_q
 LOCATION          = "Netherlands"
 RESULTS_PER_QUERY: int = int(_cfg.get("results_per_query", _DEFAULT_CONFIG["results_per_query"]))
 HOURS_OLD:         int = int(_cfg.get("hours_old",         _DEFAULT_CONFIG["hours_old"]))
+MIN_KEYWORDS:      int = max(0, int(_cfg.get("min_keywords", _DEFAULT_CONFIG["min_keywords"])))
 
 # ── Scored keyword tiers ───────────────────────────────────────────
-# Each keyword group has a weight (1–3). A job's raw score =
-# sum of weights of each group that matches at least once.
-# Score is then normalised to 0–10.
+# Each keyword group has a weight. A job's score =
+# sum over tiers of (weight × number of unique keywords matched in that tier).
+# Theoretical max = _MAX_POSSIBLE_SCORE (every keyword in every tier matched).
 # config.json stores these as [{weight: N, keywords: [...]}] objects.
 SCORED_KEYWORDS: list[tuple[int, list[str]]] = [
     (int(entry["weight"]), list(entry["keywords"]))
@@ -276,24 +278,37 @@ def _fuzzy_dedup(df: pd.DataFrame) -> pd.DataFrame:
 # SCORING & FILTERING
 # ─────────────────────────────────────────────────────────────────
 
-_MAX_POSSIBLE_SCORE: float = sum(w for w, _ in SCORED_KEYWORDS)  # 3+2+1 = 6
+_MAX_POSSIBLE_SCORE: float = sum(w * len(kws) for w, kws in SCORED_KEYWORDS)
 
 
 def _compute_fit_score(text: str) -> tuple[float, list[str]]:
     """
-    Score a job against SCORED_KEYWORDS. Returns (score_0_to_10, matched_kws).
-    Each keyword *group* contributes its weight at most once (prevents a job
-    with 20 weight-1 hits from outranking one with 2 weight-3 hits).
+    Score a job against SCORED_KEYWORDS. Returns (score, matched_kws).
+    Each tier contributes weight * unique_keyword_count — so matching more
+    keywords in a tier gives a proportionally higher score.
     """
     raw   = 0.0
     found: list[str] = []
     for weight, group in SCORED_KEYWORDS:
         hits = [kw for kw in group if kw in text]
         if hits:
-            raw += weight
+            raw += weight * len(hits)   # multiply by count, not just binary
             found.extend(hits[:3])  # cap per-group display to 3
-    score = round(min(raw / _MAX_POSSIBLE_SCORE * 10, 10.0), 1)
+    score = round(raw, 1)
     return score, found
+
+
+def _count_matched_groups(text: str) -> int:
+    """
+    Count how many distinct keyword *groups* (across all tiers) match the text.
+    Used by the min_keywords gate so a single broad term like 'control' alone
+    is not enough to pass when the user demands deeper signal.
+    """
+    return sum(
+        1
+        for _weight, group in SCORED_KEYWORDS
+        if any(kw in text for kw in group)
+    )
 
 
 def _is_senior_title(title: str) -> bool:
@@ -341,6 +356,12 @@ def filter_jobs(df: pd.DataFrame) -> pd.DataFrame:
     before = len(df)
     df = df[df["_full_text"].str.contains(gate_pattern, regex=True)]
     print(f"  Gate filter removed {before - len(df)} low-signal jobs.")
+
+    # 3b. Minimum-keyword-groups gate (configurable via min_keywords)
+    if MIN_KEYWORDS > 1 and not df.empty:
+        before = len(df)
+        df = df[df["_full_text"].apply(_count_matched_groups) >= MIN_KEYWORDS]
+        print(f"  Min-keywords gate (>= {MIN_KEYWORDS} groups) removed {before - len(df)} jobs.")
 
     if df.empty:
         print("  No jobs passed all filters.")
@@ -586,6 +607,8 @@ def save_to_db(
                 )
             elif not re.search(gate_pattern, full_lower):
                 reason = "No gate keyword: missing weight-2/3 signal (MATLAB/robotics/control etc.)"
+            elif MIN_KEYWORDS > 1 and _count_matched_groups(full_lower) < MIN_KEYWORDS:
+                reason = f"Below min_keywords gate: fewer than {MIN_KEYWORDS} distinct keyword groups matched"
             else:
                 reason = "Below fit threshold or unclassified rejection"
 
@@ -612,70 +635,43 @@ def save_to_db(
 # ANALYTICS DATA PREPARATION
 # ─────────────────────────────────────────────────────────────────
 
-def _load_analytics_data() -> dict:
+# Categories Oscar considers "control theory" jobs — used for the analytics toggle
+_CONTROL_THEORY_CATEGORIES = {"GNC/Aerospace", "High-Tech/Precision", "General Control"}
+
+
+def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
     """
-    Read jobs.db and produce a dict of pre-aggregated analytics payloads
-    that will be embedded as JSON into analytics.html.
-    Returns an empty-safe dict even if the DB does not yet exist.
+    Aggregate a list of job records into the chart payload shape.
+    Pulled out of _load_analytics_data so the same logic can produce
+    both the full payload and a control-theory-only filtered payload.
     """
-    if not os.path.exists(DB_PATH):
-        return {}
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-
-    # ── Raw dump ───────────────────────────────────────────────────
-    rows = conn.execute(
-        "SELECT * FROM jobs ORDER BY run_date, year, week_number"
-    ).fetchall()
-    conn.close()
-
-    if not rows:
-        return {}
-
-    records = [dict(r) for r in rows]
-
-    # ── Week labels (ISO year-week) ────────────────────────────────
-    # Build a sorted unique list of "YYYY-Www" strings
-    week_keys: list[str] = sorted(
-        set(f"{r['year']}-W{r['week_number']:02d}" for r in records)
-    )
-
-    def week_key(r):
-        return f"{r['year']}-W{r['week_number']:02d}"
-
-    # ── Jobs found per week (accepted only) ───────────────────────
-    accepted = [r for r in records if not r["rejection_reason"]]
-    rejected = [r for r in records if r["rejection_reason"]]
-
-    jobs_per_week: dict[str, int] = {wk: 0 for wk in week_keys}
-    for r in accepted:
-        jobs_per_week[week_key(r)] += 1
-
-    rejected_per_week: dict[str, int] = {wk: 0 for wk in week_keys}
-    for r in rejected:
-        rejected_per_week[week_key(r)] += 1
-
-    # ── Category breakdown per week (accepted) ────────────────────
     all_categories = [
         "GNC/Aerospace", "High-Tech/Precision", "Robotics", "General Control",
         "Blacklisted-PLC", "Blacklisted-Other", "Rejected-Senior", "Rejected-No-Gate",
     ]
 
-    cat_per_week: dict[str, dict[str, int]] = {
-        wk: {cat: 0 for cat in all_categories} for wk in week_keys
-    }
+    def week_key(r):
+        return f"{r['year']}-W{r['week_number']:02d}"
+
+    accepted = [r for r in records if not r["rejection_reason"]]
+    rejected = [r for r in records if r["rejection_reason"]]
+
+    jobs_per_week     = {wk: 0 for wk in week_keys}
+    rejected_per_week = {wk: 0 for wk in week_keys}
+    for r in accepted:
+        jobs_per_week[week_key(r)] += 1
+    for r in rejected:
+        rejected_per_week[week_key(r)] += 1
+
+    cat_per_week = {wk: {cat: 0 for cat in all_categories} for wk in week_keys}
     for r in records:
         wk  = week_key(r)
         cat = r["category"] or "General Control"
         if wk in cat_per_week and cat in cat_per_week[wk]:
             cat_per_week[wk][cat] += 1
 
-    # ── Source breakdown per week (accepted) ──────────────────────
     sources = ["linkedin", "indeed", "other"]
-    src_per_week: dict[str, dict[str, int]] = {
-        wk: {s: 0 for s in sources} for wk in week_keys
-    }
+    src_per_week = {wk: {s: 0 for s in sources} for wk in week_keys}
     for r in accepted:
         wk  = week_key(r)
         src = (r["site"] or "other").lower()
@@ -683,15 +679,13 @@ def _load_analytics_data() -> dict:
             src = "other"
         src_per_week[wk][src] += 1
 
-    # ── Top companies (accepted only, by frequency) ───────────────
     company_counts: dict[str, int] = {}
     for r in accepted:
         c = (r["company"] or "Unknown").strip()
         company_counts[c] = company_counts.get(c, 0) + 1
     top_companies = sorted(company_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
-    # ── Blacklisted vs matched ratio over time ────────────────────
-    ratio_per_week: list[dict] = []
+    ratio_per_week = []
     for wk in week_keys:
         acc = jobs_per_week[wk]
         rej = rejected_per_week[wk]
@@ -704,17 +698,14 @@ def _load_analytics_data() -> dict:
             "accept_pct": round(acc / total * 100, 1) if total else 0,
         })
 
-    # ── Rolling trend: 4-week moving average of accepted count ────
-    # Simple: for each week, average of that week + up to 3 preceding weeks.
     weekly_accepted_list = [jobs_per_week[wk] for wk in week_keys]
-    rolling_avg: list[float] = []
-    for i, val in enumerate(weekly_accepted_list):
+    rolling_avg = []
+    for i in range(len(weekly_accepted_list)):
         window = weekly_accepted_list[max(0, i - 3): i + 1]
         rolling_avg.append(round(sum(window) / len(window), 2))
 
-    # ── Average fit score per week (accepted) ─────────────────────
-    fit_sum:   dict[str, float] = {wk: 0.0 for wk in week_keys}
-    fit_count: dict[str, int]   = {wk: 0   for wk in week_keys}
+    fit_sum   = {wk: 0.0 for wk in week_keys}
+    fit_count = {wk: 0   for wk in week_keys}
     for r in accepted:
         wk = week_key(r)
         fit_sum[wk]   += r["fit_score"] or 0
@@ -724,41 +715,94 @@ def _load_analytics_data() -> dict:
         for wk in week_keys
     ]
 
-    # ── Target company appearances per week ───────────────────────
     target_per_week = {wk: 0 for wk in week_keys}
     for r in accepted:
         if r["is_target"]:
             target_per_week[week_key(r)] += 1
 
-    # ── Summary stats ─────────────────────────────────────────────
-    total_runs   = len(set(r["run_date"] for r in records))
-    total_seen   = len(records)
     total_accept = len(accepted)
     total_reject = len(rejected)
-    avg_fit_all  = (
+    avg_fit_all = (
         round(sum(r["fit_score"] or 0 for r in accepted) / total_accept, 2)
         if total_accept else 0
     )
 
     return {
-        "week_labels":        week_keys,
-        "jobs_per_week":      [jobs_per_week[wk] for wk in week_keys],
-        "rejected_per_week":  [rejected_per_week[wk] for wk in week_keys],
-        "rolling_avg":        rolling_avg,
-        "avg_fit_per_week":   avg_fit_per_week,
-        "target_per_week":    [target_per_week[wk] for wk in week_keys],
-        "cat_per_week":       {cat: [cat_per_week[wk][cat] for wk in week_keys] for cat in all_categories},
-        "src_per_week":       {src: [src_per_week[wk][src] for wk in week_keys] for src in sources},
-        "top_companies":      [{"company": c, "count": n} for c, n in top_companies],
-        "ratio_per_week":     ratio_per_week,
+        "jobs_per_week":     [jobs_per_week[wk] for wk in week_keys],
+        "rejected_per_week": [rejected_per_week[wk] for wk in week_keys],
+        "rolling_avg":       rolling_avg,
+        "avg_fit_per_week":  avg_fit_per_week,
+        "target_per_week":   [target_per_week[wk] for wk in week_keys],
+        "cat_per_week":      {cat: [cat_per_week[wk][cat] for wk in week_keys] for cat in all_categories},
+        "src_per_week":      {src: [src_per_week[wk][src] for wk in week_keys] for src in sources},
+        "top_companies":     [{"company": c, "count": n} for c, n in top_companies],
+        "ratio_per_week":    ratio_per_week,
         "summary": {
-            "total_runs":    total_runs,
-            "total_seen":    total_seen,
+            "total_seen":     len(records),
             "total_accepted": total_accept,
             "total_rejected": total_reject,
             "avg_fit":        avg_fit_all,
-            "last_run":       max(r["run_date"] for r in records),
         },
+    }
+
+
+def _load_analytics_data() -> dict:
+    """
+    Read jobs.db and produce a dict of pre-aggregated analytics payloads
+    that will be embedded as JSON into analytics.html.
+    Returns an empty-safe dict even if the DB does not yet exist.
+
+    Returns two payloads under keys 'all' and 'control_theory' so the
+    UI can toggle between them without re-fetching data.
+    """
+    if not os.path.exists(DB_PATH):
+        return {}
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT * FROM jobs ORDER BY run_date, year, week_number"
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return {}
+
+    records = [dict(r) for r in rows]
+
+    # Build sorted unique list of "YYYY-Www" strings — shared across both views
+    week_keys: list[str] = sorted(
+        set(f"{r['year']}-W{r['week_number']:02d}" for r in records)
+    )
+
+    # Full payload — all records
+    full = _aggregate_records(records, week_keys)
+
+    # Control-theory payload — only records whose category is in the control-theory set.
+    # We keep rejected jobs out of this filter regardless of their category labels —
+    # the toggle is about "show me only matched control-theory jobs".
+    ct_records = [
+        r for r in records
+        if (r["category"] or "") in _CONTROL_THEORY_CATEGORIES and not r["rejection_reason"]
+    ]
+    # For the control-theory view, "rejected" loses meaning (we already filtered) —
+    # the rejected/ratio series will be zero, which is correct.
+    control = _aggregate_records(ct_records, week_keys)
+
+    total_runs = len(set(r["run_date"] for r in records))
+    last_run   = max(r["run_date"] for r in records)
+
+    # Augment summary blocks with run-level metadata (only meaningful for the full view)
+    full["summary"]["total_runs"] = total_runs
+    full["summary"]["last_run"]   = last_run
+    control["summary"]["total_runs"] = total_runs
+    control["summary"]["last_run"]   = last_run
+
+    return {
+        "week_labels":    week_keys,
+        "all":            full,
+        "control_theory": control,
+        "control_theory_categories": sorted(_CONTROL_THEORY_CATEGORIES),
     }
 
 
@@ -804,7 +848,7 @@ def generate_analytics():
     cat_datasets_js = ",\n".join(
         f"""{{
           label: {json.dumps(cat)},
-          data: DATA.cat_per_week[{json.dumps(cat)}] || [],
+          data: VIEW.cat_per_week[{json.dumps(cat)}] || [],
           backgroundColor: {json.dumps(_CATEGORY_COLORS.get(cat, "#999"))},
           stack: 'categories'
         }}"""
@@ -814,7 +858,7 @@ def generate_analytics():
     src_datasets_js = ",\n".join(
         f"""{{
           label: {json.dumps(src.capitalize())},
-          data: DATA.src_per_week[{json.dumps(src)}] || [],
+          data: VIEW.src_per_week[{json.dumps(src)}] || [],
           backgroundColor: {json.dumps(_SOURCE_COLORS.get(src, "#999"))},
           stack: 'sources'
         }}"""
@@ -855,6 +899,22 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
   font-size: 13px; color: #666;
 }}
 .summary-bar strong {{ color: #1a3a5c; font-size: 22px; display: block; }}
+
+.view-toggle {{
+  background: white; border-bottom: 1px solid #e0e0e0;
+  padding: 12px 32px; display: flex; gap: 14px; align-items: center;
+  font-size: 13px; flex-wrap: wrap;
+}}
+.view-toggle label {{
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none; font-weight: 500; color: #444;
+}}
+.view-toggle input[type="checkbox"] {{
+  width: 16px; height: 16px; cursor: pointer; accent-color: #1a3a5c;
+}}
+.view-toggle .toggle-hint {{
+  font-size: 12px; color: #888;
+}}
 
 .section {{
   padding: 24px 32px;
@@ -945,6 +1005,16 @@ footer {{
 <div class="summary-bar" id="summaryBar">
   <!-- Populated by JS -->
   <div class="no-data">No data yet — run job_searcher.py --site to populate.</div>
+</div>
+
+<div class="view-toggle">
+  <label>
+    <input type="checkbox" id="controlTheoryToggle" onchange="onViewToggle()">
+    Show only control-theory jobs
+  </label>
+  <span class="toggle-hint" id="toggleHint">
+    Filters all charts to matched jobs categorised as GNC/Aerospace, High-Tech/Precision, or General Control.
+  </span>
 </div>
 
 <div class="section">
@@ -1059,21 +1129,41 @@ footer {{
 
 <script>
 // ── Embedded analytics payload ────────────────────────────────────
+// DATA has shape: {{ week_labels, all: {{...}}, control_theory: {{...}} }}
 const DATA = {data_json};
 
+// ── View state ────────────────────────────────────────────────────
+// VIEW always points to the active aggregation (either DATA.all or DATA.control_theory).
+// Charts read from VIEW.<field>; toggling the checkbox rebuilds with the other view.
+let VIEW = (DATA && DATA.all) ? DATA.all : null;
+
 // ── Guard: no data yet ────────────────────────────────────────────
-const hasData = DATA && DATA.week_labels && DATA.week_labels.length > 0;
+const hasData = !!(DATA && DATA.week_labels && DATA.week_labels.length > 0 && VIEW);
+
+// ── Chart instance registry (so we can destroy + rebuild on toggle) ──
+const CHARTS = {{}};
+
+function destroyAllCharts() {{
+  for (const key in CHARTS) {{
+    if (CHARTS[key]) {{ CHARTS[key].destroy(); CHARTS[key] = null; }}
+  }}
+}}
 
 // ── Summary bar ───────────────────────────────────────────────────
 function renderSummary() {{
   if (!hasData) return;
-  const s   = DATA.summary;
+  const s   = VIEW.summary;
   const bar = document.getElementById('summaryBar');
+  const isControl = document.getElementById('controlTheoryToggle').checked;
+  const seenLabel = isControl ? 'control-theory jobs seen' : 'total jobs seen';
+  const rejBlock  = isControl
+    ? ''
+    : `<div><strong>${{s.total_rejected}}</strong> rejected / blacklisted</div>`;
   bar.innerHTML = `
     <div><strong>${{s.total_runs}}</strong> scrape runs</div>
-    <div><strong>${{s.total_seen}}</strong> total jobs seen</div>
+    <div><strong>${{s.total_seen}}</strong> ${{seenLabel}}</div>
     <div><strong>${{s.total_accepted}}</strong> matched</div>
-    <div><strong>${{s.total_rejected}}</strong> rejected / blacklisted</div>
+    ${{rejBlock}}
     <div><strong>${{s.avg_fit}}</strong> avg fit score</div>
     <div style="font-size:12px; color:#aaa; align-self:center;">Last run: ${{s.last_run}}</div>
   `;
@@ -1103,19 +1193,19 @@ function baseScales(stacked) {{
 // ── Chart 1: Weekly matched + rejected bar ───────────────────────
 function buildChartWeekly() {{
   if (!hasData) return;
-  new Chart(document.getElementById('chartWeekly'), {{
+  CHARTS.weekly = new Chart(document.getElementById('chartWeekly'), {{
     type: 'bar',
     data: {{
       labels: DATA.week_labels,
       datasets: [
         {{
           label: 'Matched',
-          data: DATA.jobs_per_week,
+          data: VIEW.jobs_per_week,
           backgroundColor: '#2e86ab',
         }},
         {{
           label: 'Rejected / Blacklisted',
-          data: DATA.rejected_per_week,
+          data: VIEW.rejected_per_week,
           backgroundColor: '#dc3545aa',
         }},
       ],
@@ -1134,7 +1224,7 @@ function buildChartCategory() {{
   const datasets = [
     {cat_datasets_js}
   ];
-  new Chart(document.getElementById('chartCategory'), {{
+  CHARTS.category = new Chart(document.getElementById('chartCategory'), {{
     type: 'bar',
     data: {{ labels: DATA.week_labels, datasets }},
     options: {{
@@ -1151,7 +1241,7 @@ function buildChartSource() {{
   const datasets = [
     {src_datasets_js}
   ];
-  new Chart(document.getElementById('chartSource'), {{
+  CHARTS.source = new Chart(document.getElementById('chartSource'), {{
     type: 'bar',
     data: {{ labels: DATA.week_labels, datasets }},
     options: {{
@@ -1165,14 +1255,14 @@ function buildChartSource() {{
 // ── Chart 4: Rolling trend line ───────────────────────────────────
 function buildChartTrend() {{
   if (!hasData) return;
-  new Chart(document.getElementById('chartTrend'), {{
+  CHARTS.trend = new Chart(document.getElementById('chartTrend'), {{
     type: 'line',
     data: {{
       labels: DATA.week_labels,
       datasets: [
         {{
           label: 'Weekly matched',
-          data: DATA.jobs_per_week,
+          data: VIEW.jobs_per_week,
           borderColor: '#2e86ab44',
           backgroundColor: '#2e86ab11',
           borderWidth: 1,
@@ -1182,7 +1272,7 @@ function buildChartTrend() {{
         }},
         {{
           label: '4-week rolling avg',
-          data: DATA.rolling_avg,
+          data: VIEW.rolling_avg,
           borderColor: '#1a3a5c',
           backgroundColor: 'transparent',
           borderWidth: 2.5,
@@ -1203,13 +1293,13 @@ function buildChartTrend() {{
 // ── Chart 5: Avg fit score line ───────────────────────────────────
 function buildChartFit() {{
   if (!hasData) return;
-  new Chart(document.getElementById('chartFit'), {{
+  CHARTS.fit = new Chart(document.getElementById('chartFit'), {{
     type: 'line',
     data: {{
       labels: DATA.week_labels,
       datasets: [{{
         label: 'Avg fit score (matched)',
-        data: DATA.avg_fit_per_week,
+        data: VIEW.avg_fit_per_week,
         borderColor: '#28a745',
         backgroundColor: '#28a74511',
         borderWidth: 2,
@@ -1223,7 +1313,7 @@ function buildChartFit() {{
       plugins: {{ legend: {{ position: 'top' }} }},
       scales: {{
         ...baseScales(false),
-        y: {{ ...baseScales(false).y, min: 0, max: 10 }},
+        y: {{ ...baseScales(false).y, min: 0 }},
       }},
     }},
   }});
@@ -1232,13 +1322,13 @@ function buildChartFit() {{
 // ── Chart 6: Target company count per week ───────────────────────
 function buildChartTarget() {{
   if (!hasData) return;
-  new Chart(document.getElementById('chartTarget'), {{
+  CHARTS.target = new Chart(document.getElementById('chartTarget'), {{
     type: 'bar',
     data: {{
       labels: DATA.week_labels,
       datasets: [{{
         label: 'Target company matches',
-        data: DATA.target_per_week,
+        data: VIEW.target_per_week,
         backgroundColor: '#f39c12',
       }}],
     }},
@@ -1253,8 +1343,8 @@ function buildChartTarget() {{
 // ── Chart 7: Match rate line ──────────────────────────────────────
 function buildChartRatio() {{
   if (!hasData) return;
-  const pcts = DATA.ratio_per_week.map(r => r.accept_pct);
-  new Chart(document.getElementById('chartRatio'), {{
+  const pcts = VIEW.ratio_per_week.map(r => r.accept_pct);
+  CHARTS.ratio = new Chart(document.getElementById('chartRatio'), {{
     type: 'line',
     data: {{
       labels: DATA.week_labels,
@@ -1283,12 +1373,16 @@ function buildChartRatio() {{
 
 // ── Top companies table ───────────────────────────────────────────
 function buildCompanyTable() {{
-  if (!hasData || !DATA.top_companies.length) return;
-  const maxCount = DATA.top_companies[0].count;
+  if (!hasData) return;
   const tbody    = document.getElementById('companyTbody');
-  tbody.innerHTML = DATA.top_companies.map((row, i) => {{
+  if (!VIEW.top_companies.length) {{
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data">No companies in this view.</td></tr>';
+    return;
+  }}
+  const maxCount = VIEW.top_companies[0].count;
+  tbody.innerHTML = VIEW.top_companies.map((row, i) => {{
     const pct     = maxCount ? Math.round(row.count / maxCount * 100) : 0;
-    const totalAcc = DATA.summary.total_accepted;
+    const totalAcc = VIEW.summary.total_accepted;
     const share   = totalAcc ? ((row.count / totalAcc) * 100).toFixed(1) + '%' : '—';
     return `<tr>
       <td>${{i + 1}}</td>
@@ -1313,18 +1407,18 @@ function buildWeekTable() {{
   const n       = DATA.week_labels.length;
   const rows    = [];
   for (let i = n - 1; i >= 0; i--) {{   // newest first
-    const matched  = DATA.jobs_per_week[i];
-    const rejected = DATA.rejected_per_week[i];
+    const matched  = VIEW.jobs_per_week[i];
+    const rejected = VIEW.rejected_per_week[i];
     const total    = matched + rejected;
     const matchPct = total ? ((matched / total) * 100).toFixed(0) + '%' : '—';
-    const avgFit   = DATA.avg_fit_per_week[i];
-    const target   = DATA.target_per_week[i];
-    const rolling  = DATA.rolling_avg[i];
+    const avgFit   = VIEW.avg_fit_per_week[i];
+    const target   = VIEW.target_per_week[i];
+    const rolling  = VIEW.rolling_avg[i];
 
     // Trend: compare rolling avg to previous week's rolling avg
     let trendBadge = '';
     if (i > 0) {{
-      const prev = DATA.rolling_avg[i - 1];
+      const prev = VIEW.rolling_avg[i - 1];
       const delta = rolling - prev;
       if (delta > 0.3)       trendBadge = '<span class="trend-badge trend-up">improving</span>';
       else if (delta < -0.3) trendBadge = '<span class="trend-badge trend-down">declining</span>';
@@ -1344,17 +1438,31 @@ function buildWeekTable() {{
   tbody.innerHTML = rows.join('');
 }}
 
+// ── Render everything (called on boot + on toggle) ────────────────
+function renderAll() {{
+  renderSummary();
+  buildChartWeekly();
+  buildChartCategory();
+  buildChartSource();
+  buildChartTrend();
+  buildChartFit();
+  buildChartTarget();
+  buildChartRatio();
+  buildCompanyTable();
+  buildWeekTable();
+}}
+
+// ── Toggle handler: swap active view + rebuild ───────────────────
+function onViewToggle() {{
+  if (!hasData) return;
+  const isControl = document.getElementById('controlTheoryToggle').checked;
+  VIEW = isControl ? DATA.control_theory : DATA.all;
+  destroyAllCharts();
+  renderAll();
+}}
+
 // ── Boot ──────────────────────────────────────────────────────────
-renderSummary();
-buildChartWeekly();
-buildChartCategory();
-buildChartSource();
-buildChartTrend();
-buildChartFit();
-buildChartTarget();
-buildChartRatio();
-buildCompanyTable();
-buildWeekTable();
+renderAll();
 </script>
 </body>
 </html>"""
@@ -1384,8 +1492,9 @@ def _format_date(row) -> str:
 
 def _score_bar(score: float, width: int = 10) -> str:
     """Return a simple ASCII progress bar for fit score."""
-    filled = round(score)
-    return "[" + "#" * filled + "-" * (width - filled) + f"] {score:.1f}/10"
+    filled = round(score / _MAX_POSSIBLE_SCORE * width)
+    filled = max(0, min(filled, width))
+    return "[" + "#" * filled + "-" * (width - filled) + f"] {score:.1f}"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1429,9 +1538,9 @@ def print_results(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────
 
 def _score_color(score: float) -> str:
-    if score >= 7:
+    if score >= 0.4 * _MAX_POSSIBLE_SCORE:
         return "#1e7e34"  # green
-    if score >= 4:
+    if score >= 0.2 * _MAX_POSSIBLE_SCORE:
         return "#856404"  # amber
     return "#721c24"      # red
 
@@ -1439,19 +1548,19 @@ def _score_color(score: float) -> str:
 def build_email_html(df: pd.DataFrame) -> str:
     date_str  = datetime.now().strftime("%Y-%m-%d")
     target_n  = int(df["is_target"].sum()) if not df.empty else 0
-    high_fit  = int((df["fit_score"] >= 6).sum()) if not df.empty else 0
+    high_fit  = int((df["fit_score"] >= 0.4 * _MAX_POSSIBLE_SCORE).sum()) if not df.empty else 0
 
     html = f"""
 <html><body style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
 <h2 style="color:#1a3a5c;">Control Systems Job Alert — {date_str}</h2>
 <p>Found <b>{len(df)}</b> relevant jobs &nbsp;|&nbsp;
    <b>{target_n}</b> target companies &nbsp;|&nbsp;
-   <b>{high_fit}</b> high fit (score >= 6)
+   <b>{high_fit}</b> high fit (score &ge; {0.4 * _MAX_POSSIBLE_SCORE:.0f})
 </p>
 <p style="color:#888; font-size:12px;">
   Filters: fresh grad (no senior/lead), PLC/SCADA/HMI blacklisted,
   gate requires MATLAB/Simulink/control/robotics signal.
-  Score = weighted keyword depth (max 10).
+  Score = raw weighted keyword depth (max {_MAX_POSSIBLE_SCORE:.0f}).
 </p>
 <hr>
 """
@@ -1484,7 +1593,7 @@ def build_email_html(df: pd.DataFrame) -> str:
   <p style="margin:3px 0; font-weight:bold; font-size:14px;">{company}</p>
   <p style="margin:3px 0; color:#555; font-size:13px;">{location}</p>
   <p style="margin:6px 0; font-size:13px;">
-    Fit score: <b style="color:{score_col};">{score}/10</b>
+    Fit score: <b style="color:{score_col};">{score}</b>
   </p>
   <p style="margin:3px 0; color:#555; font-size:12px;">{summary}</p>
   <p style="margin:3px 0; font-size:12px; color:#888;">Keywords: {keywords}</p>
@@ -1555,7 +1664,7 @@ def generate_site(df: pd.DataFrame):
     updated   = datetime.now().strftime("%d %B %Y at %H:%M UTC")
     total     = len(df)
     target_n  = int(df["is_target"].sum()) if not df.empty else 0
-    high_fit  = int((df["fit_score"] >= 6).sum()) if not df.empty else 0
+    high_fit  = int((df["fit_score"] >= 0.4 * _MAX_POSSIBLE_SCORE).sum()) if not df.empty else 0
 
     cards_html = ""
     if df.empty:
@@ -1585,17 +1694,18 @@ def generate_site(df: pd.DataFrame):
                 salary_str = f"From {currency} {int(row['min_amount']):,}"
 
             # Score badge colour
-            if score >= 7:
+            if score >= 0.4 * _MAX_POSSIBLE_SCORE:
                 score_cls = "score-high"
-            elif score >= 4:
+            elif score >= 0.2 * _MAX_POSSIBLE_SCORE:
                 score_cls = "score-mid"
             else:
                 score_cls = "score-low"
 
-            # Score bar (HTML)
+            # Score bar (HTML) — width as % of max possible raw score
+            bar_pct = min(score / _MAX_POSSIBLE_SCORE * 100, 100)
             bar_html = (
                 f'<div class="score-bar">'
-                f'<div class="bar-fill {score_cls}" style="width:{score*10}%"></div>'
+                f'<div class="bar-fill {score_cls}" style="width:{bar_pct:.1f}%"></div>'
                 f'</div>'
             )
 
@@ -1617,7 +1727,7 @@ def generate_site(df: pd.DataFrame):
   </div>
   <div class="score-row">
     <span class="score-label">Fit:</span>
-    <span class="score-num {score_cls}">{score}/10</span>
+    <span class="score-num {score_cls}">{score}</span>
     {bar_html}
   </div>
   <p class="summary">{summary}</p>
@@ -1768,13 +1878,17 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 <div class="stats">
   <div><strong>{total}</strong> jobs found</div>
   <div><strong>{target_n}</strong> target companies</div>
-  <div><strong>{high_fit}</strong> high fit (score &ge; 6)</div>
+  <div><strong>{high_fit}</strong> high fit (score &ge; {0.4 * _MAX_POSSIBLE_SCORE:.0f})</div>
   <div style="font-size:12px;">Sources: Indeed NL + LinkedIn</div>
 </div>
 
 <div class="controls">
   <input type="text" id="searchBox" placeholder="Filter by title, company, keyword..."
          oninput="applyFilters()">
+  <input type="number" id="minScoreBox" placeholder="Min score" min="0" step="1"
+         title="Show only jobs with fit score >= this value"
+         oninput="applyFilters()"
+         style="width: 110px;">
   <button class="filter-btn active" onclick="filterSite('all', this)">All</button>
   <button class="filter-btn" onclick="filterSite('linkedin', this)">LinkedIn</button>
   <button class="filter-btn" onclick="filterSite('indeed', this)">Indeed</button>
@@ -1791,7 +1905,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 <footer>
   Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
   Runs daily at 09:00 NL time via GitHub Actions &nbsp;&middot;&nbsp;
-  Fit score = weighted keyword depth (max 10)
+  Fit score = raw weighted keyword depth (max {_MAX_POSSIBLE_SCORE:.0f})
 </footer>
 
 <script>
@@ -1801,14 +1915,18 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 
   function applyFilters() {{
     const q = document.getElementById('searchBox').value.toLowerCase();
+    const minScoreRaw = document.getElementById('minScoreBox').value;
+    const minScore = minScoreRaw === '' ? null : parseFloat(minScoreRaw);
     document.querySelectorAll('.card').forEach(card => {{
-      const text    = card.innerText.toLowerCase();
-      const site    = card.dataset.site || '';
+      const text     = card.innerText.toLowerCase();
+      const site     = card.dataset.site || '';
       const isTarget = card.dataset.target === 'true';
+      const score    = parseFloat(card.dataset.score || '0');
       const matchText   = q === '' || text.includes(q);
       const matchSite   = activeSite === 'all' || site === activeSite;
       const matchTarget = !targetOnly || isTarget;
-      card.classList.toggle('hidden', !(matchText && matchSite && matchTarget));
+      const matchScore  = minScore === null || isNaN(minScore) || score >= minScore;
+      card.classList.toggle('hidden', !(matchText && matchSite && matchTarget && matchScore));
     }});
   }}
 

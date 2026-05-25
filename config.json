@@ -79,5 +79,6 @@
     "nxp", "prodrive", "daf", "vi grade", "mecaer"
   ],
   "results_per_query": 30,
-  "hours_old": 168
+  "hours_old": 168,
+  "min_keywords": 1
 }
