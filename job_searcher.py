@@ -874,13 +874,73 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
 }}
 .nav-link:hover {{ background: rgba(255,255,255,0.15); }}
 
-.summary-bar {{
-  background: white; border-bottom: 1px solid #e0e0e0;
-  padding: 14px 32px; display: flex; gap: 32px; flex-wrap: wrap;
-  font-size: 13px; color: #666;
+/* ── Stat cards ──────────────────────────────────────────────── */
+.stat-cards {{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 20px 32px;
+  background: white;
+  border-bottom: 1px solid #e0e0e0;
 }}
-.summary-bar strong {{ color: #1a3a5c; font-size: 22px; display: block; }}
+.stat-card {{
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}}
+.stat-card .stat-value {{
+  font-size: 28px; font-weight: 700; color: #1a3a5c; line-height: 1.1;
+}}
+.stat-card .stat-label {{
+  font-size: 12px; color: #64748b; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}}
+.stat-card .stat-trend {{
+  font-size: 11px; margin-top: 4px; font-weight: 600;
+}}
+.stat-trend.up   {{ color: #16a34a; }}
+.stat-trend.down {{ color: #dc2626; }}
+.stat-trend.flat {{ color: #94a3b8; }}
 
+/* ── Range selector strip ────────────────────────────────────── */
+.range-strip {{
+  background: #f8fafc;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}}
+.range-strip label {{
+  font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap;
+}}
+.range-strip select {{
+  font-size: 12px; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid #cbd5e1; background: white; color: #334155;
+  cursor: pointer;
+}}
+.range-strip select:focus {{ outline: 2px solid #2e86ab; outline-offset: 1px; }}
+.range-quick {{
+  display: flex; gap: 6px; margin-left: 8px; flex-wrap: wrap;
+}}
+.range-btn {{
+  font-size: 12px; font-weight: 500; padding: 5px 12px;
+  border-radius: 6px; border: 1px solid #cbd5e1;
+  background: white; color: #475569; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}}
+.range-btn:hover {{ background: #e2e8f0; }}
+.range-btn.active {{
+  background: #1a3a5c; color: white; border-color: #1a3a5c;
+}}
+
+/* ── View toggle ─────────────────────────────────────────────── */
 .view-toggle {{
   background: white; border-bottom: 1px solid #e0e0e0;
   padding: 12px 32px; display: flex; gap: 14px; align-items: center;
@@ -897,6 +957,7 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
   font-size: 12px; color: #888;
 }}
 
+/* ── Layout ──────────────────────────────────────────────────── */
 .section {{
   padding: 24px 32px;
 }}
@@ -926,6 +987,7 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
 .chart-wide {{ grid-column: 1 / -1; }}
 .chart-wide .chart-wrap {{ height: 280px; }}
 
+/* ── Tables ──────────────────────────────────────────────────── */
 table {{
   width: 100%; border-collapse: collapse; font-size: 13px;
 }}
@@ -933,6 +995,12 @@ th {{
   background: #f8f9fa; text-align: left; padding: 8px 12px;
   font-weight: 600; color: #555; border-bottom: 2px solid #e8e8e8;
 }}
+th.sortable {{
+  cursor: pointer; user-select: none; white-space: nowrap;
+}}
+th.sortable:hover {{ background: #eef0f2; color: #1a3a5c; }}
+th.sort-asc::after  {{ content: ' ▲'; font-size: 10px; opacity: 0.7; }}
+th.sort-desc::after {{ content: ' ▼'; font-size: 10px; opacity: 0.7; }}
 td {{
   padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #333;
 }}
@@ -965,8 +1033,13 @@ footer {{
 
 @media (max-width: 700px) {{
   .charts-grid {{ grid-template-columns: 1fr; }}
-  .section {{ padding: 16px; }}
-  header, .summary-bar {{ padding-left: 16px; padding-right: 16px; }}
+  .stat-cards  {{ grid-template-columns: repeat(2, 1fr); padding: 14px 16px; }}
+  .section     {{ padding: 16px; }}
+  header, .range-strip, .view-toggle {{ padding-left: 16px; padding-right: 16px; }}
+  .range-quick {{ margin-left: 0; }}
+}}
+@media (max-width: 480px) {{
+  .stat-cards {{ grid-template-columns: 1fr; }}
 }}
 </style>
 </head>
@@ -983,9 +1056,26 @@ footer {{
   </div>
 </header>
 
-<div class="summary-bar" id="summaryBar">
-  <!-- Populated by JS -->
-  <div class="no-data">No data yet — run job_searcher.py --site to populate.</div>
+<!-- Stat cards — populated by JS -->
+<div class="stat-cards" id="statCards">
+  <div class="stat-card" style="grid-column:1/-1;">
+    <div class="stat-label">Status</div>
+    <div class="stat-value" style="font-size:16px;color:#aaa;">No data yet — run job_searcher.py --site to populate.</div>
+  </div>
+</div>
+
+<!-- Range selector strip -->
+<div class="range-strip" id="rangeStrip" style="display:none;">
+  <label for="fromWeek">From week</label>
+  <select id="fromWeek" onchange="onRangeDropdown()"></select>
+  <label for="toWeek">To week</label>
+  <select id="toWeek" onchange="onRangeDropdown()"></select>
+  <div class="range-quick">
+    <button class="range-btn" onclick="setQuickRange(4,  this)">Last 4 weeks</button>
+    <button class="range-btn" onclick="setQuickRange(8,  this)">Last 8 weeks</button>
+    <button class="range-btn" onclick="setQuickRange(12, this)">Last 12 weeks</button>
+    <button class="range-btn" onclick="setQuickRange(0,  this)">All time</button>
+  </div>
 </div>
 
 <div class="view-toggle">
@@ -1063,6 +1153,14 @@ footer {{
 
 <div class="section">
   <div class="section-title">Top Companies in Results</div>
+  <div class="charts-grid" style="margin-bottom:16px;">
+    <div class="chart-card chart-wide">
+      <h3>Top 10 companies by appearance count</h3>
+      <div class="chart-wrap" style="height:320px;">
+        <canvas id="chartCompanies"></canvas>
+      </div>
+    </div>
+  </div>
   <div style="background:white; border-radius:10px; border:1px solid #e8e8e8; overflow:hidden;">
     <table id="companyTable">
       <thead>
@@ -1086,12 +1184,12 @@ footer {{
     <table id="weekTable">
       <thead>
         <tr>
-          <th>Week</th>
-          <th>Matched</th>
-          <th>Rejected</th>
-          <th>Match Rate</th>
-          <th>Avg Fit</th>
-          <th>Target Co.</th>
+          <th class="sortable" data-col="0" data-dir="desc" onclick="sortWeekTable(this)">Week</th>
+          <th class="sortable" data-col="1" data-dir="desc" onclick="sortWeekTable(this)">Matched</th>
+          <th class="sortable" data-col="2" data-dir="desc" onclick="sortWeekTable(this)">Rejected</th>
+          <th class="sortable" data-col="3" data-dir="desc" onclick="sortWeekTable(this)">Match Rate</th>
+          <th class="sortable" data-col="4" data-dir="desc" onclick="sortWeekTable(this)">Avg Fit</th>
+          <th class="sortable" data-col="5" data-dir="desc" onclick="sortWeekTable(this)">Target Co.</th>
           <th>Trend</th>
         </tr>
       </thead>
@@ -1110,18 +1208,21 @@ footer {{
 
 <script>
 // ── Embedded analytics payload ────────────────────────────────────
-// DATA has shape: {{ week_labels, all: {{...}}, control_theory: {{...}} }}
+// DATA shape: {{ week_labels, all: {{...}}, control_theory: {{...}} }}
 const DATA = {data_json};
+const CAT_COLORS = {cat_colors_json};
+const SRC_COLORS = {src_colors_json};
 
 // ── View state ────────────────────────────────────────────────────
-// VIEW always points to the active aggregation (either DATA.all or DATA.control_theory).
-// Charts read from VIEW.<field>; toggling the checkbox rebuilds with the other view.
-let VIEW = (DATA && DATA.all) ? DATA.all : null;
+// VIEW = active aggregation (DATA.all or DATA.control_theory)
+// RANGE = [fromIdx, toIdx] inclusive indices into DATA.week_labels
+let VIEW  = (DATA && DATA.all) ? DATA.all : null;
+let RANGE = [0, 0];  // will be set during boot
 
 // ── Guard: no data yet ────────────────────────────────────────────
 const hasData = !!(DATA && DATA.week_labels && DATA.week_labels.length > 0 && VIEW);
 
-// ── Chart instance registry (so we can destroy + rebuild on toggle) ──
+// ── Chart instance registry ───────────────────────────────────────
 const CHARTS = {{}};
 
 function destroyAllCharts() {{
@@ -1130,23 +1231,135 @@ function destroyAllCharts() {{
   }}
 }}
 
-// ── Summary bar ───────────────────────────────────────────────────
-function renderSummary() {{
+// ── Slice helper: extract [from..to] inclusive from an array ──────
+function sl(arr) {{
+  if (!arr) return [];
+  return arr.slice(RANGE[0], RANGE[1] + 1);
+}}
+
+// ── Recompute rolling avg for the sliced window ───────────────────
+function slRolling(jobsArr) {{
+  const raw = sl(jobsArr);
+  return raw.map((_, i) => {{
+    const win = raw.slice(Math.max(0, i - 3), i + 1);
+    return Math.round(win.reduce((a, b) => a + b, 0) / win.length * 100) / 100;
+  }});
+}}
+
+// ── Range selector helpers ────────────────────────────────────────
+function initRangeUI() {{
   if (!hasData) return;
-  const s   = VIEW.summary;
-  const bar = document.getElementById('summaryBar');
-  const isControl = document.getElementById('controlTheoryToggle').checked;
-  const seenLabel = isControl ? 'control-theory jobs seen' : 'total jobs seen';
-  const rejBlock  = isControl
-    ? ''
-    : `<div><strong>${{s.total_rejected}}</strong> rejected / blacklisted</div>`;
-  bar.innerHTML = `
-    <div><strong>${{s.total_runs}}</strong> scrape runs</div>
-    <div><strong>${{s.total_seen}}</strong> ${{seenLabel}}</div>
-    <div><strong>${{s.total_accepted}}</strong> matched</div>
-    ${{rejBlock}}
-    <div><strong>${{s.avg_fit}}</strong> avg fit score</div>
-    <div style="font-size:12px; color:#aaa; align-self:center;">Last run: ${{s.last_run}}</div>
+  const labels = DATA.week_labels;
+  const from = document.getElementById('fromWeek');
+  const to   = document.getElementById('toWeek');
+  from.innerHTML = labels.map((l, i) => `<option value="${{i}}">${{l}}</option>`).join('');
+  to.innerHTML   = labels.map((l, i) => `<option value="${{i}}">${{l}}</option>`).join('');
+  document.getElementById('rangeStrip').style.display = '';
+
+  // Default: last 8 weeks (or all if fewer)
+  const defaultBtn = document.querySelectorAll('.range-btn')[1]; // "Last 8 weeks"
+  setQuickRange(8, defaultBtn);
+}}
+
+function applyRange(fromIdx, toIdx) {{
+  const labels = DATA.week_labels;
+  RANGE[0] = Math.max(0, fromIdx);
+  RANGE[1] = Math.min(labels.length - 1, toIdx);
+  document.getElementById('fromWeek').value = RANGE[0];
+  document.getElementById('toWeek').value   = RANGE[1];
+}}
+
+function setQuickRange(n, btn) {{
+  // Highlight active button
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const total = DATA.week_labels.length;
+  if (n === 0 || n >= total) {{
+    applyRange(0, total - 1);
+  }} else {{
+    applyRange(total - n, total - 1);
+  }}
+  destroyAllCharts();
+  renderAll();
+}}
+
+function onRangeDropdown() {{
+  // Clear quick-range highlight when user manually picks dropdowns
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  const from = parseInt(document.getElementById('fromWeek').value, 10);
+  const to   = parseInt(document.getElementById('toWeek').value,   10);
+  if (from <= to) {{
+    RANGE[0] = from;
+    RANGE[1] = to;
+    destroyAllCharts();
+    renderAll();
+  }}
+}}
+
+// ── Stat cards ────────────────────────────────────────────────────
+function renderStatCards() {{
+  if (!hasData) return;
+  const container = document.getElementById('statCards');
+
+  // Compute stats for selected range
+  const slMatched  = sl(VIEW.jobs_per_week);
+  const slRejected = sl(VIEW.rejected_per_week);
+  const slFit      = sl(VIEW.avg_fit_per_week);
+  const slTarget   = sl(VIEW.target_per_week);
+
+  const totalMatched  = slMatched.reduce((a, b) => a + b, 0);
+  const totalRejected = slRejected.reduce((a, b) => a + b, 0);
+  const totalTarget   = slTarget.reduce((a, b) => a + b, 0);
+  const matchRate     = (totalMatched + totalRejected) > 0
+    ? ((totalMatched / (totalMatched + totalRejected)) * 100).toFixed(1)
+    : '—';
+  const fitVals = slFit.filter(v => v > 0);
+  const avgFit  = fitVals.length
+    ? (fitVals.reduce((a, b) => a + b, 0) / fitVals.length).toFixed(2)
+    : '—';
+
+  // Trend: compare current range to equal-length prior period
+  const rangeLen = RANGE[1] - RANGE[0] + 1;
+  const prevStart = RANGE[0] - rangeLen;
+  let trendHtml = '';
+  if (prevStart >= 0) {{
+    const prevMatched = VIEW.jobs_per_week.slice(prevStart, RANGE[0]).reduce((a, b) => a + b, 0);
+    const delta = totalMatched - prevMatched;
+    if (delta > 0)      trendHtml = `<span class="stat-trend up">&#8593; +${{delta}} vs prev period</span>`;
+    else if (delta < 0) trendHtml = `<span class="stat-trend down">&#8595; ${{delta}} vs prev period</span>`;
+    else                trendHtml = `<span class="stat-trend flat">&#8212; no change</span>`;
+  }}
+
+  const s = VIEW.summary;
+  const rangeLabel = `${{DATA.week_labels[RANGE[0]]}} – ${{DATA.week_labels[RANGE[1]]}}`;
+
+  container.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${{s.total_runs}}</div>
+      <div class="stat-label">Total scrape runs</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${{totalMatched}}</div>
+      <div class="stat-label">Jobs matched</div>
+      ${{trendHtml}}
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${{totalRejected}}</div>
+      <div class="stat-label">Jobs rejected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${{matchRate}}%</div>
+      <div class="stat-label">Match rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${{avgFit}}</div>
+      <div class="stat-label">Avg fit score</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${{totalTarget}}</div>
+      <div class="stat-label">Target company hits</div>
+    </div>
   `;
 }}
 
@@ -1171,22 +1384,29 @@ function baseScales(stacked) {{
   }};
 }}
 
+function hexToRgba(hex, alpha) {{
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${{r}},${{g}},${{b}},${{alpha}})`;
+}}
+
 // ── Chart 1: Weekly matched + rejected bar ───────────────────────
 function buildChartWeekly() {{
   if (!hasData) return;
   CHARTS.weekly = new Chart(document.getElementById('chartWeekly'), {{
     type: 'bar',
     data: {{
-      labels: DATA.week_labels,
+      labels: sl(DATA.week_labels),
       datasets: [
         {{
           label: 'Matched',
-          data: VIEW.jobs_per_week,
+          data: sl(VIEW.jobs_per_week),
           backgroundColor: '#2e86ab',
         }},
         {{
           label: 'Rejected / Blacklisted',
-          data: VIEW.rejected_per_week,
+          data: sl(VIEW.rejected_per_week),
           backgroundColor: '#dc3545aa',
         }},
       ],
@@ -1199,15 +1419,26 @@ function buildChartWeekly() {{
   }});
 }}
 
-// ── Chart 2: Category stacked bar ────────────────────────────────
+// ── Chart 2: Category stacked area line ──────────────────────────
 function buildChartCategory() {{
   if (!hasData) return;
-  const datasets = [
-    {cat_datasets_js}
-  ];
+  const slLabels = sl(DATA.week_labels);
+  const datasets = Object.entries(VIEW.cat_per_week).map(([cat, vals]) => {{
+    const color = CAT_COLORS[cat] || '#999999';
+    return {{
+      label: cat,
+      data: sl(vals),
+      borderColor: color,
+      backgroundColor: hexToRgba(color.length === 7 ? color : '#999999', 0.18),
+      borderWidth: 2,
+      pointRadius: 2,
+      fill: true,
+      tension: 0.3,
+    }};
+  }});
   CHARTS.category = new Chart(document.getElementById('chartCategory'), {{
-    type: 'bar',
-    data: {{ labels: DATA.week_labels, datasets }},
+    type: 'line',
+    data: {{ labels: slLabels, datasets }},
     options: {{
       responsive: true, maintainAspectRatio: false,
       plugins: {{ legend: {{ position: 'bottom', labels: {{ boxWidth: 10, font: {{ size: 10 }} }} }} }},
@@ -1216,19 +1447,30 @@ function buildChartCategory() {{
   }});
 }}
 
-// ── Chart 3: Source stacked bar ───────────────────────────────────
+// ── Chart 3: Source line chart ────────────────────────────────────
 function buildChartSource() {{
   if (!hasData) return;
-  const datasets = [
-    {src_datasets_js}
-  ];
+  const slLabels = sl(DATA.week_labels);
+  const datasets = Object.entries(VIEW.src_per_week).map(([src, vals]) => {{
+    const color = SRC_COLORS[src] || '#888888';
+    return {{
+      label: src.charAt(0).toUpperCase() + src.slice(1),
+      data: sl(vals),
+      borderColor: color,
+      backgroundColor: hexToRgba(color, 0.08),
+      borderWidth: 2,
+      pointRadius: 3,
+      fill: false,
+      tension: 0.3,
+    }};
+  }});
   CHARTS.source = new Chart(document.getElementById('chartSource'), {{
-    type: 'bar',
-    data: {{ labels: DATA.week_labels, datasets }},
+    type: 'line',
+    data: {{ labels: slLabels, datasets }},
     options: {{
       responsive: true, maintainAspectRatio: false,
       plugins: {{ legend: {{ position: 'top' }} }},
-      scales: baseScales(true),
+      scales: baseScales(false),
     }},
   }});
 }}
@@ -1239,11 +1481,11 @@ function buildChartTrend() {{
   CHARTS.trend = new Chart(document.getElementById('chartTrend'), {{
     type: 'line',
     data: {{
-      labels: DATA.week_labels,
+      labels: sl(DATA.week_labels),
       datasets: [
         {{
           label: 'Weekly matched',
-          data: VIEW.jobs_per_week,
+          data: sl(VIEW.jobs_per_week),
           borderColor: '#2e86ab44',
           backgroundColor: '#2e86ab11',
           borderWidth: 1,
@@ -1253,7 +1495,7 @@ function buildChartTrend() {{
         }},
         {{
           label: '4-week rolling avg',
-          data: VIEW.rolling_avg,
+          data: slRolling(VIEW.jobs_per_week),
           borderColor: '#1a3a5c',
           backgroundColor: 'transparent',
           borderWidth: 2.5,
@@ -1277,10 +1519,10 @@ function buildChartFit() {{
   CHARTS.fit = new Chart(document.getElementById('chartFit'), {{
     type: 'line',
     data: {{
-      labels: DATA.week_labels,
+      labels: sl(DATA.week_labels),
       datasets: [{{
         label: 'Avg fit score (matched)',
-        data: VIEW.avg_fit_per_week,
+        data: sl(VIEW.avg_fit_per_week),
         borderColor: '#28a745',
         backgroundColor: '#28a74511',
         borderWidth: 2,
@@ -1306,10 +1548,10 @@ function buildChartTarget() {{
   CHARTS.target = new Chart(document.getElementById('chartTarget'), {{
     type: 'bar',
     data: {{
-      labels: DATA.week_labels,
+      labels: sl(DATA.week_labels),
       datasets: [{{
         label: 'Target company matches',
-        data: VIEW.target_per_week,
+        data: sl(VIEW.target_per_week),
         backgroundColor: '#f39c12',
       }}],
     }},
@@ -1324,11 +1566,17 @@ function buildChartTarget() {{
 // ── Chart 7: Match rate line ──────────────────────────────────────
 function buildChartRatio() {{
   if (!hasData) return;
-  const pcts = VIEW.ratio_per_week.map(r => r.accept_pct);
+  // Recompute ratio from sliced matched/rejected so the % is correct for the window
+  const slMatched  = sl(VIEW.jobs_per_week);
+  const slRejected = sl(VIEW.rejected_per_week);
+  const pcts = slMatched.map((m, i) => {{
+    const total = m + slRejected[i];
+    return total ? Math.round(m / total * 1000) / 10 : 0;
+  }});
   CHARTS.ratio = new Chart(document.getElementById('chartRatio'), {{
     type: 'line',
     data: {{
-      labels: DATA.week_labels,
+      labels: sl(DATA.week_labels),
       datasets: [{{
         label: 'Match rate (%)',
         data: pcts,
@@ -1352,28 +1600,56 @@ function buildChartRatio() {{
   }});
 }}
 
+// ── Chart 8: Top companies horizontal bar ────────────────────────
+function buildChartCompanies() {{
+  if (!hasData) return;
+  // Use full (non-sliced) top_companies from VIEW — the top-companies list
+  // is pre-aggregated all-time but we display top 10 here
+  const top10 = VIEW.top_companies.slice(0, 10);
+  if (!top10.length) return;
+  CHARTS.companies = new Chart(document.getElementById('chartCompanies'), {{
+    type: 'bar',
+    data: {{
+      labels: top10.map(r => r.company),
+      datasets: [{{
+        label: 'Appearances',
+        data: top10.map(r => r.count),
+        backgroundColor: '#2e86ab',
+        borderRadius: 4,
+      }}],
+    }},
+    options: {{
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {{ legend: {{ display: false }} }},
+      scales: {{
+        x: {{ grid: {{ color: GRID_COLOR }}, beginAtZero: true }},
+        y: {{ grid: {{ color: 'transparent' }}, ticks: {{ font: {{ size: 11 }} }} }},
+      }},
+    }},
+  }});
+}}
+
 // ── Top companies table ───────────────────────────────────────────
 function buildCompanyTable() {{
   if (!hasData) return;
-  const tbody    = document.getElementById('companyTbody');
+  const tbody = document.getElementById('companyTbody');
   if (!VIEW.top_companies.length) {{
     tbody.innerHTML = '<tr><td colspan="4" class="no-data">No companies in this view.</td></tr>';
     return;
   }}
-  const maxCount = VIEW.top_companies[0].count;
+  const maxCount  = VIEW.top_companies[0].count;
+  const totalAcc  = VIEW.summary.total_accepted;
   tbody.innerHTML = VIEW.top_companies.map((row, i) => {{
-    const pct     = maxCount ? Math.round(row.count / maxCount * 100) : 0;
-    const totalAcc = VIEW.summary.total_accepted;
-    const share   = totalAcc ? ((row.count / totalAcc) * 100).toFixed(1) + '%' : '—';
+    const pct   = maxCount ? Math.round(row.count / maxCount * 100) : 0;
+    const share = totalAcc ? ((row.count / totalAcc) * 100).toFixed(1) + '%' : '—';
     return `<tr>
       <td>${{i + 1}}</td>
       <td>${{row.company}}</td>
       <td>
         <div class="bar-cell">
           <span>${{row.count}}</span>
-          <div class="mini-bar">
-            <div class="mini-bar-fill" style="width:${{pct}}%"></div>
-          </div>
+          <div class="mini-bar"><div class="mini-bar-fill" style="width:${{pct}}%"></div></div>
         </div>
       </td>
       <td>${{share}}</td>
@@ -1381,47 +1657,87 @@ function buildCompanyTable() {{
   }}).join('');
 }}
 
-// ── Weekly breakdown table ────────────────────────────────────────
+// ── Weekly breakdown table (with sort) ───────────────────────────
+let _weekSortCol = 0;   // default sort: Week column
+let _weekSortDir = -1;  // -1 = desc (newest first)
+
 function buildWeekTable() {{
   if (!hasData) return;
   const tbody   = document.getElementById('weekTbody');
-  const n       = DATA.week_labels.length;
-  const rows    = [];
-  for (let i = n - 1; i >= 0; i--) {{   // newest first
+
+  // Build row data for the selected range (newest first default)
+  const rows = [];
+  for (let i = RANGE[0]; i <= RANGE[1]; i++) {{
     const matched  = VIEW.jobs_per_week[i];
     const rejected = VIEW.rejected_per_week[i];
     const total    = matched + rejected;
-    const matchPct = total ? ((matched / total) * 100).toFixed(0) + '%' : '—';
+    const matchPct = total ? ((matched / total) * 100) : null;
     const avgFit   = VIEW.avg_fit_per_week[i];
     const target   = VIEW.target_per_week[i];
     const rolling  = VIEW.rolling_avg[i];
 
-    // Trend: compare rolling avg to previous week's rolling avg
     let trendBadge = '';
     if (i > 0) {{
-      const prev = VIEW.rolling_avg[i - 1];
+      const prev  = VIEW.rolling_avg[i - 1];
       const delta = rolling - prev;
       if (delta > 0.3)       trendBadge = '<span class="trend-badge trend-up">improving</span>';
       else if (delta < -0.3) trendBadge = '<span class="trend-badge trend-down">declining</span>';
       else                   trendBadge = '<span class="trend-badge trend-flat">stable</span>';
     }}
 
-    rows.push(`<tr>
-      <td>${{DATA.week_labels[i]}}</td>
-      <td>${{matched}}</td>
-      <td>${{rejected}}</td>
-      <td>${{matchPct}}</td>
-      <td>${{avgFit || '—'}}</td>
-      <td>${{target}}</td>
-      <td>${{trendBadge}}</td>
-    </tr>`);
+    rows.push({{
+      week:      DATA.week_labels[i],
+      matched,
+      rejected,
+      matchPct:  matchPct !== null ? matchPct : -1,
+      avgFit:    avgFit || 0,
+      target,
+      trendBadge,
+      // sortable numeric values for each column (col index matches th data-col)
+      sortVals: [DATA.week_labels[i], matched, rejected, matchPct !== null ? matchPct : -1, avgFit || 0, target],
+    }});
   }}
-  tbody.innerHTML = rows.join('');
+
+  // Sort
+  rows.sort((a, b) => {{
+    const av = a.sortVals[_weekSortCol];
+    const bv = b.sortVals[_weekSortCol];
+    if (av < bv) return _weekSortDir;
+    if (av > bv) return -_weekSortDir;
+    return 0;
+  }});
+
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${{r.week}}</td>
+    <td>${{r.matched}}</td>
+    <td>${{r.rejected}}</td>
+    <td>${{r.matchPct >= 0 ? r.matchPct.toFixed(0) + '%' : '—'}}</td>
+    <td>${{r.avgFit || '—'}}</td>
+    <td>${{r.target}}</td>
+    <td>${{r.trendBadge}}</td>
+  </tr>`).join('');
 }}
 
-// ── Render everything (called on boot + on toggle) ────────────────
+function sortWeekTable(th) {{
+  const col = parseInt(th.dataset.col, 10);
+  // Toggle direction if same column, else reset to desc
+  if (_weekSortCol === col) {{
+    _weekSortDir = -_weekSortDir;
+  }} else {{
+    _weekSortCol = col;
+    _weekSortDir = -1;
+  }}
+  // Update header classes
+  document.querySelectorAll('#weekTable th.sortable').forEach(h => {{
+    h.classList.remove('sort-asc', 'sort-desc');
+  }});
+  th.classList.add(_weekSortDir === -1 ? 'sort-desc' : 'sort-asc');
+  buildWeekTable();
+}}
+
+// ── Render everything ─────────────────────────────────────────────
 function renderAll() {{
-  renderSummary();
+  renderStatCards();
   buildChartWeekly();
   buildChartCategory();
   buildChartSource();
@@ -1429,11 +1745,12 @@ function renderAll() {{
   buildChartFit();
   buildChartTarget();
   buildChartRatio();
+  buildChartCompanies();
   buildCompanyTable();
   buildWeekTable();
 }}
 
-// ── Toggle handler: swap active view + rebuild ───────────────────
+// ── Toggle handler ────────────────────────────────────────────────
 function onViewToggle() {{
   if (!hasData) return;
   const isControl = document.getElementById('controlTheoryToggle').checked;
@@ -1443,7 +1760,11 @@ function onViewToggle() {{
 }}
 
 // ── Boot ──────────────────────────────────────────────────────────
-renderAll();
+if (hasData) {{
+  initRangeUI();  // sets RANGE and calls renderAll() via setQuickRange
+}} else {{
+  renderAll();    // renders "no data" state
+}}
 </script>
 </body>
 </html>"""
