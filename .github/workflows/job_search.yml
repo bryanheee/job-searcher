@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 7 * * *"   # 07:00 UTC = 09:00 Netherlands (CEST); adjust to 08:00 in winter
   workflow_dispatch:        # manual trigger from GitHub UI
+  push:
+    branches:
+      - main               # auto-run whenever you push code changes
 
 permissions:
   contents: write
