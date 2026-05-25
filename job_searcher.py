@@ -300,14 +300,15 @@ def _compute_fit_score(text: str) -> tuple[float, list[str]]:
 
 def _count_matched_groups(text: str) -> int:
     """
-    Count how many distinct keyword *groups* (across all tiers) match the text.
-    Used by the min_keywords gate so a single broad term like 'control' alone
-    is not enough to pass when the user demands deeper signal.
+    Count total unique individual keywords matched across ALL tiers.
+    Used by the min_keywords gate — e.g. min_keywords=5 means at least
+    5 individual keywords (across any tier) must appear in the job text.
     """
     return sum(
         1
         for _weight, group in SCORED_KEYWORDS
-        if any(kw in text for kw in group)
+        for kw in group
+        if kw in text
     )
 
 
@@ -357,11 +358,11 @@ def filter_jobs(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df["_full_text"].str.contains(gate_pattern, regex=True)]
     print(f"  Gate filter removed {before - len(df)} low-signal jobs.")
 
-    # 3b. Minimum-keyword-groups gate (configurable via min_keywords)
+    # 3b. Minimum total keywords gate (configurable via min_keywords)
     if MIN_KEYWORDS > 1 and not df.empty:
         before = len(df)
         df = df[df["_full_text"].apply(_count_matched_groups) >= MIN_KEYWORDS]
-        print(f"  Min-keywords gate (>= {MIN_KEYWORDS} groups) removed {before - len(df)} jobs.")
+        print(f"  Min-keywords gate (>= {MIN_KEYWORDS} total keywords) removed {before - len(df)} jobs.")
 
     if df.empty:
         print("  No jobs passed all filters.")
@@ -608,7 +609,7 @@ def save_to_db(
             elif not re.search(gate_pattern, full_lower):
                 reason = "No gate keyword: missing weight-2/3 signal (MATLAB/robotics/control etc.)"
             elif MIN_KEYWORDS > 1 and _count_matched_groups(full_lower) < MIN_KEYWORDS:
-                reason = f"Below min_keywords gate: fewer than {MIN_KEYWORDS} distinct keyword groups matched"
+                reason = f"Below min_keywords gate: fewer than {MIN_KEYWORDS} total keywords matched across all tiers"
             else:
                 reason = "Below fit threshold or unclassified rejection"
 
@@ -840,30 +841,10 @@ def generate_analytics():
 
     updated = datetime.now().strftime("%d %B %Y at %H:%M UTC")
 
-    # Build category dataset entries for Chart.js
-    all_categories = [
-        "GNC/Aerospace", "High-Tech/Precision", "Robotics", "General Control",
-        "Blacklisted-PLC", "Blacklisted-Other", "Rejected-Senior", "Rejected-No-Gate",
-    ]
-    cat_datasets_js = ",\n".join(
-        f"""{{
-          label: {json.dumps(cat)},
-          data: VIEW.cat_per_week[{json.dumps(cat)}] || [],
-          backgroundColor: {json.dumps(_CATEGORY_COLORS.get(cat, "#999"))},
-          stack: 'categories'
-        }}"""
-        for cat in all_categories
-    )
-
-    src_datasets_js = ",\n".join(
-        f"""{{
-          label: {json.dumps(src.capitalize())},
-          data: VIEW.src_per_week[{json.dumps(src)}] || [],
-          backgroundColor: {json.dumps(_SOURCE_COLORS.get(src, "#999"))},
-          stack: 'sources'
-        }}"""
-        for src in ["linkedin", "indeed", "other"]
-    )
+    # Category and source colour maps — passed into the JS as JSON so the
+    # client can build datasets dynamically after range-slicing.
+    cat_colors_json = json.dumps(_CATEGORY_COLORS)
+    src_colors_json = json.dumps(_SOURCE_COLORS)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
