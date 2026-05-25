@@ -771,6 +771,13 @@ def _load_analytics_data() -> dict:
 
     records = [dict(r) for r in rows]
 
+    # Build first_seen_date: job_id -> earliest run_date across all records
+    first_seen_date: dict[str, str] = {}
+    for r in records:
+        jid = r["job_id"]
+        if jid not in first_seen_date or r["run_date"] < first_seen_date[jid]:
+            first_seen_date[jid] = r["run_date"]
+
     # Build sorted unique list of "YYYY-Www" strings — shared across both views
     week_keys: list[str] = sorted(
         set(f"{r['year']}-W{r['week_number']:02d}" for r in records)
@@ -799,11 +806,59 @@ def _load_analytics_data() -> dict:
     control["summary"]["total_runs"] = total_runs
     control["summary"]["last_run"]   = last_run
 
+    # Compute new_jobs_per_week for full and control payloads.
+    # "New" = first time a job_id appears (first_seen_week == that week).
+    # We only count accepted jobs for this series.
+    def _compute_new_jobs_per_week(recs_subset: list[dict]) -> list[int]:
+        # Count each accepted job_id exactly once, in the week it was first seen globally.
+        seen_jids: set[str] = set()
+        counts: dict[str, int] = {wk: 0 for wk in week_keys}
+        for r in recs_subset:
+            if r["rejection_reason"]:
+                continue
+            jid = r["job_id"]
+            if jid in seen_jids:
+                continue
+            seen_jids.add(jid)
+            fs_date = first_seen_date.get(jid, r["run_date"])
+            parsed = datetime.strptime(fs_date, "%Y-%m-%d")
+            iso = parsed.isocalendar()
+            fsw = f"{iso[0]}-W{iso[1]:02d}"
+            if fsw in counts:
+                counts[fsw] += 1
+        return [counts[wk] for wk in week_keys]
+
+    full["new_jobs_per_week"]    = _compute_new_jobs_per_week(records)
+    control["new_jobs_per_week"] = _compute_new_jobs_per_week(ct_records)
+
+    # Lightweight individual accepted job records for client-side score filtering.
+    # Keys shortened to keep embedded JSON small: wk=week, sc=score,
+    # cat=category, tgt=is_target, src=site, co=company, fsw=first_seen_week.
+    job_records = []
+    for r in records:
+        if r["rejection_reason"]:
+            continue
+        jid = r["job_id"]
+        fs_date = first_seen_date.get(jid, r["run_date"])
+        parsed = datetime.strptime(fs_date, "%Y-%m-%d")
+        iso = parsed.isocalendar()
+        fsw = f"{iso[0]}-W{iso[1]:02d}"
+        job_records.append({
+            "wk":  f"{r['year']}-W{r['week_number']:02d}",
+            "sc":  round(r["fit_score"] or 0, 1),
+            "cat": r["category"] or "General Control",
+            "tgt": 1 if r["is_target"] else 0,
+            "src": (r["site"] or "other").lower(),
+            "co":  (r["company"] or "Unknown").strip(),
+            "fsw": fsw,
+        })
+
     return {
         "week_labels":    week_keys,
         "all":            full,
         "control_theory": control,
         "control_theory_categories": sorted(_CONTROL_THEORY_CATEGORIES),
+        "job_records":    job_records,
     }
 
 
@@ -1083,8 +1138,21 @@ footer {{
     <input type="checkbox" id="controlTheoryToggle" onchange="onViewToggle()">
     Show only control-theory jobs
   </label>
-  <span class="toggle-hint" id="toggleHint">
-    Filters all charts to matched jobs categorised as GNC/Aerospace, High-Tech/Precision, or General Control.
+  <span class="toggle-hint">
+    GNC/Aerospace, High-Tech/Precision, General Control only.
+  </span>
+  <span style="display:inline-flex; align-items:center; gap:8px; margin-left:16px;">
+    <label for="minScoreFilter" style="font-weight:500; color:#444; white-space:nowrap;">Min score:</label>
+    <input type="number" id="minScoreFilter" min="0" step="1" placeholder="any"
+           oninput="onScoreFilter()"
+           style="width:72px; padding:5px 8px; border:1px solid #ccc; border-radius:6px;
+                  font-size:13px; outline:none;">
+  </span>
+  <span style="display:inline-flex; align-items:center; gap:8px; margin-left:16px;">
+    <label style="font-weight:500; color:#444; white-space:nowrap;">New jobs score &ge;:</label>
+    <input type="number" id="newJobScoreFilter" min="0" step="1" placeholder="any"
+           oninput="onNewJobScoreFilter()"
+           style="width:72px; padding:5px 8px; border:1px solid #ccc; border-radius:6px; font-size:13px;">
   </span>
 </div>
 
@@ -1096,6 +1164,13 @@ footer {{
       <h3>Jobs found per week (matched vs rejected)</h3>
       <div class="chart-wrap">
         <canvas id="chartWeekly"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card chart-wide">
+      <h3>New jobs discovered per week (first appearance)</h3>
+      <div class="chart-wrap">
+        <canvas id="chartNewJobs"></canvas>
       </div>
     </div>
 
@@ -1475,6 +1550,39 @@ function buildChartSource() {{
   }});
 }}
 
+// ── Chart: New jobs discovered per week ──────────────────────────
+function buildChartNewJobs() {{
+  if (!hasData) return;
+  const newArr       = sl(VIEW.new_jobs_per_week || []);
+  const totalArr     = sl(VIEW.jobs_per_week);
+  const returningArr = totalArr.map((t, i) => Math.max(0, t - (newArr[i] || 0)));
+  CHARTS.newJobs = new Chart(document.getElementById('chartNewJobs'), {{
+    type: 'bar',
+    data: {{
+      labels: sl(DATA.week_labels),
+      datasets: [
+        {{
+          label: 'New (first appearance)',
+          data: newArr,
+          backgroundColor: '#1a3a5c',
+          stack: 'stack',
+        }},
+        {{
+          label: 'Returning (seen before)',
+          data: returningArr,
+          backgroundColor: '#28a745',
+          stack: 'stack',
+        }},
+      ],
+    }},
+    options: {{
+      responsive: true, maintainAspectRatio: false,
+      plugins: {{ legend: {{ position: 'top' }} }},
+      scales: baseScales(true),
+    }},
+  }});
+}}
+
 // ── Chart 4: Rolling trend line ───────────────────────────────────
 function buildChartTrend() {{
   if (!hasData) return;
@@ -1739,6 +1847,7 @@ function sortWeekTable(th) {{
 function renderAll() {{
   renderStatCards();
   buildChartWeekly();
+  buildChartNewJobs();
   buildChartCategory();
   buildChartSource();
   buildChartTrend();
@@ -1750,14 +1859,131 @@ function renderAll() {{
   buildWeekTable();
 }}
 
-// ── Toggle handler ────────────────────────────────────────────────
-function onViewToggle() {{
+// ── Score-filter re-aggregation ───────────────────────────────────
+// When a min-score or control-theory filter is active we rebuild VIEW
+// from DATA.job_records (individual accepted jobs) so the charts
+// reflect exactly the filtered subset.  Rejected counts become 0 in
+// this mode (rejected jobs have no score and are not in job_records).
+
+const _ALL_CATS = [
+  "GNC/Aerospace","High-Tech/Precision","Robotics","General Control",
+  "Blacklisted-PLC","Blacklisted-Other","Rejected-Senior","Rejected-No-Gate"
+];
+const _SRCS = ["linkedin","indeed","other"];
+
+function _rebuildViewFromRecords(recs) {{
+  // recs = already-filtered subset of DATA.job_records
+  const wkIdx = {{}};
+  DATA.week_labels.forEach((wk, i) => wkIdx[wk] = i);
+  const n = DATA.week_labels.length;
+
+  const jobsArr   = new Array(n).fill(0);
+  const fitSum    = new Array(n).fill(0);
+  const fitCnt    = new Array(n).fill(0);
+  const tgtArr    = new Array(n).fill(0);
+  const catArr    = Object.fromEntries(_ALL_CATS.map(c => [c, new Array(n).fill(0)]));
+  const srcArr    = Object.fromEntries(_SRCS.map(s => [s, new Array(n).fill(0)]));
+  const coCounts  = {{}};
+
+  for (const r of recs) {{
+    const i = wkIdx[r.wk];
+    if (i === undefined) continue;
+    jobsArr[i]++;
+    fitSum[i]  += r.sc;
+    fitCnt[i]++;
+    if (r.tgt) tgtArr[i]++;
+    const cat = _ALL_CATS.includes(r.cat) ? r.cat : "General Control";
+    catArr[cat][i]++;
+    const src = _SRCS.includes(r.src) ? r.src : "other";
+    srcArr[src][i]++;
+    coCounts[r.co] = (coCounts[r.co] || 0) + 1;
+  }}
+
+  const rolling = jobsArr.map((_, i) => {{
+    const win = jobsArr.slice(Math.max(0, i - 3), i + 1);
+    return Math.round(win.reduce((a, b) => a + b, 0) / win.length * 100) / 100;
+  }});
+  const avgFitArr = jobsArr.map((_, i) =>
+    fitCnt[i] ? Math.round(fitSum[i] / fitCnt[i] * 100) / 100 : 0
+  );
+  const topCo = Object.entries(coCounts)
+    .sort((a, b) => b[1] - a[1]).slice(0, 20)
+    .map(([company, count]) => ({{ company, count }}));
+  const totalAcc  = recs.length;
+  const avgFitAll = totalAcc
+    ? Math.round(recs.reduce((s, r) => s + r.sc, 0) / totalAcc * 100) / 100
+    : 0;
+
+  // new_jobs_per_week: count per-week using fsw (first-seen week).
+  // Apply the new-job score filter (separate dimension) from #newJobScoreFilter.
+  const newJobMinScore = parseFloat(document.getElementById('newJobScoreFilter')?.value) || 0;
+  const newJobsArr = DATA.week_labels.map(wk =>
+    (DATA.job_records || []).filter(r => r.fsw === wk && r.sc >= newJobMinScore).length
+  );
+
+  return {{
+    jobs_per_week:     jobsArr,
+    rejected_per_week: new Array(n).fill(0),
+    rolling_avg:       rolling,
+    avg_fit_per_week:  avgFitArr,
+    target_per_week:   tgtArr,
+    cat_per_week:      catArr,
+    src_per_week:      srcArr,
+    top_companies:     topCo,
+    ratio_per_week:    jobsArr.map(m => ({{ accepted: m, rejected: 0, total: m, accept_pct: 100 }})),
+    new_jobs_per_week: newJobsArr,
+    summary: {{
+      total_seen:     totalAcc,
+      total_accepted: totalAcc,
+      total_rejected: 0,
+      avg_fit:        avgFitAll,
+      total_runs:     DATA.all?.summary?.total_runs || 0,
+      last_run:       DATA.all?.summary?.last_run   || '',
+    }},
+  }};
+}}
+
+function _getMinScore() {{
+  const v = parseFloat(document.getElementById('minScoreFilter').value);
+  return isNaN(v) ? 0 : v;
+}}
+
+function _getNewJobMinScore() {{
+  const v = parseFloat(document.getElementById('newJobScoreFilter').value);
+  return isNaN(v) ? 0 : v;
+}}
+
+// ── Unified view refresh (toggle + score filter) ───────────────────
+function refreshView() {{
   if (!hasData) return;
-  const isControl = document.getElementById('controlTheoryToggle').checked;
-  VIEW = isControl ? DATA.control_theory : DATA.all;
+  const isControl    = document.getElementById('controlTheoryToggle').checked;
+  const minScore     = _getMinScore();
+  const newJobScore  = _getNewJobMinScore();
+
+  if (minScore > 0 || isControl || newJobScore > 0) {{
+    // Filter individual records and re-aggregate
+    let recs = DATA.job_records || [];
+    if (isControl) {{
+      const ctSet = new Set(DATA.control_theory_categories || []);
+      recs = recs.filter(r => ctSet.has(r.cat));
+    }}
+    if (minScore > 0) {{
+      recs = recs.filter(r => r.sc >= minScore);
+    }}
+    VIEW = _rebuildViewFromRecords(recs);
+  }} else {{
+    // No filters active — use the fast pre-aggregated payload.
+    // new_jobs_per_week is pre-computed in the Python payload.
+    VIEW = DATA.all;
+  }}
+
   destroyAllCharts();
   renderAll();
 }}
+
+function onViewToggle()        {{ if (hasData) refreshView(); }}
+function onScoreFilter()       {{ if (hasData) refreshView(); }}
+function onNewJobScoreFilter() {{ if (hasData) refreshView(); }}
 
 // ── Boot ──────────────────────────────────────────────────────────
 if (hasData) {{
@@ -1968,6 +2194,20 @@ def generate_site(df: pd.DataFrame):
     target_n  = int(df["is_target"].sum()) if not df.empty else 0
     high_fit  = int((df["fit_score"] >= 0.4 * _MAX_POSSIBLE_SCORE).sum()) if not df.empty else 0
 
+    # Build set of job_ids seen in previous scrape runs (run_date < today)
+    today = datetime.now().strftime("%Y-%m-%d")
+    previously_seen: set[str] = set()
+    if os.path.exists(DB_PATH):
+        try:
+            _conn = sqlite3.connect(DB_PATH)
+            rows_prev = _conn.execute(
+                "SELECT DISTINCT job_id FROM jobs WHERE run_date < ?", (today,)
+            ).fetchall()
+            _conn.close()
+            previously_seen = {r[0] for r in rows_prev}
+        except Exception as exc:
+            print(f"  [site] Could not query previously-seen jobs: {exc}")
+
     cards_html = ""
     if df.empty:
         cards_html = '<div class="empty"><p>No relevant jobs found today. Check back tomorrow.</p></div>'
@@ -1985,6 +2225,10 @@ def generate_site(df: pd.DataFrame):
             summary    = str(row.get("description", ""))[:280].strip()
             if summary:
                 summary += "..."
+
+            # New vs returning detection
+            jid    = _job_id(title, company, link)
+            is_new = jid not in previously_seen
 
             # Salary — surfaced if jobspy returns it
             salary_str = ""
@@ -2011,16 +2255,23 @@ def generate_site(df: pd.DataFrame):
                 f'</div>'
             )
 
-            star_badge   = '<span class="badge badge-target">Target company</span>' if is_target else ""
-            site_badge   = f'<span class="badge badge-{site_name}">{site_name.upper()}</span>'
-            salary_badge = f'<span class="badge badge-salary">{salary_str}</span>' if salary_str else ""
-            card_class   = "card target-card" if is_target else "card"
+            star_badge     = '<span class="badge badge-target">Target company</span>' if is_target else ""
+            site_badge     = f'<span class="badge badge-{site_name}">{site_name.upper()}</span>'
+            salary_badge   = f'<span class="badge badge-salary">{salary_str}</span>' if salary_str else ""
+            newness_badge  = '<span class="badge badge-new">NEW</span>' if is_new else '<span class="badge badge-seen">Seen</span>'
+
+            # Card classes and inline style
+            card_classes = "card"
+            if is_target:
+                card_classes += " target-card"
+            if not is_new:
+                card_classes += " returning-card"
 
             cards_html += f"""
-<div class="{card_class}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}">
+<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}">
   <div class="card-header">
     <h3><a href="{link}" target="_blank" rel="noopener">{title}</a></h3>
-    <div class="badges">{star_badge}{site_badge}{salary_badge}</div>
+    <div class="badges">{star_badge}{newness_badge}{site_badge}{salary_badge}</div>
   </div>
   <div class="card-meta">
     <span>{company}</span>
@@ -2115,6 +2366,10 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .badge-linkedin {{ background: #e8f4fd; color: #0a66c2; }}
 .badge-indeed   {{ background: #e8f8f0; color: #2e7d32; }}
 .badge-salary   {{ background: #f3e8ff; color: #6b21a8; }}
+.badge-new  {{ background: #dbeafe; color: #1d4ed8; }}
+.badge-seen {{ background: #dcfce7; color: #166534; }}
+.returning-card {{ background: #f0fff4 !important; border-left: 4px solid #28a745; }}
+.target-card.returning-card {{ border-left: 4px solid #f39c12; }}
 
 .card-meta {{
   display: flex; flex-wrap: wrap; gap: 10px;
@@ -2195,6 +2450,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   <button class="filter-btn" onclick="filterSite('linkedin', this)">LinkedIn</button>
   <button class="filter-btn" onclick="filterSite('indeed', this)">Indeed</button>
   <button class="filter-btn" onclick="filterTarget(this)">Target only</button>
+  <button class="filter-btn" onclick="filterNew(this)">New only</button>
   <span class="sort-label">Sort:</span>
   <button class="filter-btn active" onclick="sortCards('score', this)">Fit score</button>
   <button class="filter-btn" onclick="sortCards('date', this)">Newest</button>
@@ -2213,6 +2469,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 <script>
   let activeSite   = 'all';
   let targetOnly   = false;
+  let newOnly      = false;
   let activeSort   = 'score';
 
   function applyFilters() {{
@@ -2224,11 +2481,13 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
       const site     = card.dataset.site || '';
       const isTarget = card.dataset.target === 'true';
       const score    = parseFloat(card.dataset.score || '0');
+      const isNew    = card.dataset.new === 'true';
       const matchText   = q === '' || text.includes(q);
       const matchSite   = activeSite === 'all' || site === activeSite;
       const matchTarget = !targetOnly || isTarget;
       const matchScore  = minScore === null || isNaN(minScore) || score >= minScore;
-      card.classList.toggle('hidden', !(matchText && matchSite && matchTarget && matchScore));
+      const matchNew    = !newOnly || isNew;
+      card.classList.toggle('hidden', !(matchText && matchSite && matchTarget && matchScore && matchNew));
     }});
   }}
 
@@ -2245,6 +2504,12 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   function filterTarget(btn) {{
     targetOnly = !targetOnly;
     btn.classList.toggle('active', targetOnly);
+    applyFilters();
+  }}
+
+  function filterNew(btn) {{
+    newOnly = !newOnly;
+    btn.classList.toggle('active', newOnly);
     applyFilters();
   }}
 
