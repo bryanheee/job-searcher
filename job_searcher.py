@@ -1175,13 +1175,6 @@ footer {{
     </div>
 
     <div class="chart-card">
-      <h3>Breakdown by job category per week</h3>
-      <div class="chart-wrap">
-        <canvas id="chartCategory"></canvas>
-      </div>
-    </div>
-
-    <div class="chart-card">
       <h3>Source: LinkedIn vs Indeed per week</h3>
       <div class="chart-wrap">
         <canvas id="chartSource"></canvas>
@@ -1470,19 +1463,23 @@ function hexToRgba(hex, alpha) {{
 function buildChartWeekly() {{
   if (!hasData) return;
   CHARTS.weekly = new Chart(document.getElementById('chartWeekly'), {{
-    type: 'bar',
+    type: 'line',
     data: {{
       labels: sl(DATA.week_labels),
       datasets: [
         {{
           label: 'Matched',
           data: sl(VIEW.jobs_per_week),
-          backgroundColor: '#2e86ab',
+          borderColor: '#2e86ab',
+          backgroundColor: '#2e86ab22',
+          borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
         }},
         {{
           label: 'Rejected / Blacklisted',
           data: sl(VIEW.rejected_per_week),
-          backgroundColor: '#dc3545aa',
+          borderColor: '#dc3545',
+          backgroundColor: '#dc354522',
+          borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
         }},
       ],
     }},
@@ -1557,21 +1554,23 @@ function buildChartNewJobs() {{
   const totalArr     = sl(VIEW.jobs_per_week);
   const returningArr = totalArr.map((t, i) => Math.max(0, t - (newArr[i] || 0)));
   CHARTS.newJobs = new Chart(document.getElementById('chartNewJobs'), {{
-    type: 'bar',
+    type: 'line',
     data: {{
       labels: sl(DATA.week_labels),
       datasets: [
         {{
           label: 'New (first appearance)',
           data: newArr,
-          backgroundColor: '#1a3a5c',
-          stack: 'stack',
+          borderColor: '#1a3a5c',
+          backgroundColor: '#1a3a5c22',
+          borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
         }},
         {{
           label: 'Returning (seen before)',
           data: returningArr,
-          backgroundColor: '#28a745',
-          stack: 'stack',
+          borderColor: '#28a745',
+          backgroundColor: '#28a74522',
+          borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
         }},
       ],
     }},
@@ -1654,13 +1653,15 @@ function buildChartFit() {{
 function buildChartTarget() {{
   if (!hasData) return;
   CHARTS.target = new Chart(document.getElementById('chartTarget'), {{
-    type: 'bar',
+    type: 'line',
     data: {{
       labels: sl(DATA.week_labels),
       datasets: [{{
         label: 'Target company matches',
         data: sl(VIEW.target_per_week),
-        backgroundColor: '#f39c12',
+        borderColor: '#f39c12',
+        backgroundColor: '#f39c1222',
+        borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3,
       }}],
     }},
     options: {{
@@ -1848,7 +1849,6 @@ function renderAll() {{
   renderStatCards();
   buildChartWeekly();
   buildChartNewJobs();
-  buildChartCategory();
   buildChartSource();
   buildChartTrend();
   buildChartFit();
