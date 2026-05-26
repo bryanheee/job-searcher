@@ -45,7 +45,9 @@ jobs:
           fi
 
       - name: Run job search and generate site
-        run: python job_searcher.py --site --save
+        run: |
+          test -f applied.json || echo '[]' > applied.json
+          python job_searcher.py --site --save
 
       # Push the updated jobs.db back to the data branch so it survives
       # across runs. This branch is separate from main and gh-pages.
@@ -79,6 +81,7 @@ jobs:
           cp archive.html   _site/archive.html
           # config.json must exist (job_searcher.py writes defaults if absent)
           cp config.json    _site/config.json
+          cp applied.json   _site/applied.json
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

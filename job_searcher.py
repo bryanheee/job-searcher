@@ -2388,6 +2388,16 @@ def generate_site(df: pd.DataFrame):
         alltime_max = _MAX_POSSIBLE_SCORE if _MAX_POSSIBLE_SCORE > 0 else 1.0
     SCORE_REF = alltime_max
 
+    # ── Read applied.json ─────────────────────────────────────────────
+    applied_ids: set[str] = set()
+    applied_json_path = os.path.join(OUTPUT_DIR, "applied.json")
+    if os.path.exists(applied_json_path):
+        try:
+            with open(applied_json_path, "r", encoding="utf-8") as _f:
+                applied_ids = set(json.load(_f))
+        except Exception:
+            pass
+
     total    = len(display_df)
     target_n = int(display_df["is_target"].sum()) if not display_df.empty else 0
     high_fit = int((display_df["fit_score"] >= 0.4 * SCORE_REF).sum()) if not display_df.empty else 0
@@ -2483,14 +2493,18 @@ def generate_site(df: pd.DataFrame):
             desired_badge  = f'<span class="badge badge-desired">&#9733; Match</span>' if is_desired else ""
 
             # Card classes and inline style
+            is_applied_card = jid in applied_ids
             card_classes = "card"
             if is_target:
                 card_classes += " target-card"
             if not is_new:
                 card_classes += " returning-card"
+            if is_applied_card:
+                card_classes += " applied-card"
+            card_style = ' style="display:none"' if is_applied_card else ""
 
             cards_html += f"""
-<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}" data-jobid="{jid}">
+<div class="{card_classes}"{card_style} data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}" data-jobid="{jid}">
   <div class="card-header">
     <h3><a href="{link}" target="_blank" rel="noopener">{title}</a></h3>
     <div class="badges">{desired_badge}{star_badge}{newness_badge}{site_badge}{salary_badge}</div>
@@ -2690,6 +2704,10 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   </div>
 </div>
 
+<div id="patNotice" style="font-size:12px;color:#aaa;padding:2px 32px 6px;display:none;">
+  Applied jobs saved locally only — <a href="settings.html" style="color:#2e86ab;">connect GitHub in Settings</a> to sync to repo.
+</div>
+
 <div class="controls">
   <input type="text" id="searchBox" placeholder="Filter by title, company, keyword..."
          oninput="applyFilters()">
@@ -2719,107 +2737,126 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 
 <script>
   const DESIRED_SCORE = {DESIRED_SCORE};
+  const SERVER_APPLIED = new Set({json.dumps(list(applied_ids))});
   let activeSite   = 'all';
   let targetOnly   = false;
   let newOnly      = false;
   let activeSort   = 'score';
   let showApplied  = false;
 
-  // ── localStorage helpers ────────────────────────────────────────
-  const LS_KEY = 'jss_applied';
+  // ── Applied jobs — persisted to applied.json in the repo ──────────
+  const LS_KEY       = 'jss_applied';
+  const LS_PAT       = 'jss_gh_pat';
+  const LS_USER      = 'jss_gh_user';
+  const LS_REPO      = 'jss_gh_repo';
+  const APPLIED_FILE = 'applied.json';
 
-  function getApplied() {{
-    try {{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }}
-    catch (e) {{ return []; }}
+  let appliedSet = new Set(SERVER_APPLIED);  // seed from server-rendered set
+
+  async function loadApplied() {{
+    // Fetch latest applied.json from GitHub Pages (cache-bust)
+    try {{
+      const res = await fetch(APPLIED_FILE + '?_=' + Date.now());
+      if (res.ok) {{ const arr = await res.json(); arr.forEach(id => appliedSet.add(id)); }}
+    }} catch(e) {{}}
+    // Merge localStorage fallback
+    try {{
+      const local = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      local.forEach(id => appliedSet.add(id));
+    }} catch(e) {{}}
+    initAppliedUI();
   }}
 
-  function saveApplied(arr) {{
-    localStorage.setItem(LS_KEY, JSON.stringify(arr));
-  }}
-
-  function isApplied(jid) {{
-    return getApplied().includes(jid);
-  }}
-
-  // ── Update "Show applied (N)" counter ───────────────────────────
-  function refreshAppliedCounter() {{
-    const applied = getApplied();
-    // Count only jobs that are on this page
-    let count = 0;
-    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
-      if (applied.includes(card.dataset.jobid)) count++;
+  function initAppliedUI() {{
+    document.querySelectorAll('[data-jobid]').forEach(card => {{
+      if (appliedSet.has(card.dataset.jobid)) {{
+        card.classList.add('applied-card');
+        if (!window._showApplied) card.style.display = 'none';
+        const btn = card.querySelector('.apply-toggle-btn');
+        if (btn) {{ btn.textContent = '↩ Undo'; btn.classList.add('applied'); }}
+      }}
     }});
-    document.getElementById('appliedCount').textContent = count;
+    refreshAppliedCounter();
+    checkPatNotice();
   }}
 
-  // ── Toggle an individual card's applied state ───────────────────
+  async function saveApplied() {{
+    const arr = Array.from(appliedSet);
+    localStorage.setItem(LS_KEY, JSON.stringify(arr));   // always save locally too
+
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;   // no PAT — localStorage only
+
+    try {{
+      const apiUrl = `https://api.github.com/repos/${{user}}/${{repo}}/contents/${{APPLIED_FILE}}`;
+      let sha = null;
+      try {{
+        const r = await fetch(apiUrl, {{ headers: {{ Authorization: `Bearer ${{pat}}` }} }});
+        if (r.ok) {{ const d = await r.json(); sha = d.sha; }}
+      }} catch(e) {{}}
+      const body = {{ message: 'Update applied.json', content: btoa(JSON.stringify(arr, null, 2)) }};
+      if (sha) body.sha = sha;
+      await fetch(apiUrl, {{
+        method: 'PUT',
+        headers: {{ Authorization: `Bearer ${{pat}}`, 'Content-Type': 'application/json' }},
+        body: JSON.stringify(body)
+      }});
+    }} catch(e) {{ console.warn('Could not save applied.json:', e); }}
+  }}
+
+  function checkPatNotice() {{
+    const el = document.getElementById('patNotice');
+    if (el) el.style.display = localStorage.getItem(LS_PAT) ? 'none' : 'block';
+  }}
+
+  function refreshAppliedCounter() {{
+    const count = document.querySelectorAll('[data-jobid].applied-card').length;
+    const el = document.getElementById('appliedCount');
+    if (el) el.textContent = count;
+  }}
+
   function toggleAppliedCard(btn) {{
     const jid  = btn.dataset.jobid;
-    const card = btn.closest('.card');
-    let applied = getApplied();
-
-    if (applied.includes(jid)) {{
-      // Undo
-      applied = applied.filter(id => id !== jid);
-      saveApplied(applied);
+    const card = btn.closest('[data-jobid]');
+    if (appliedSet.has(jid)) {{
+      appliedSet.delete(jid);
       card.classList.remove('applied-card');
-      btn.textContent = '\\u2713 Applied';
+      card.style.display = '';
+      btn.textContent = '✓ Applied';
       btn.classList.remove('applied');
-      // Re-show if we were hiding applied
-      if (!showApplied) card.style.display = '';
     }} else {{
-      // Mark applied
-      applied.push(jid);
-      saveApplied(applied);
+      appliedSet.add(jid);
       card.classList.add('applied-card');
-      btn.textContent = '\\u21a9 Undo';
+      if (!window._showApplied) card.style.display = 'none';
+      btn.textContent = '↩ Undo';
       btn.classList.add('applied');
-      // Hide from main list if we are not showing applied
-      if (!showApplied) card.style.display = 'none';
     }}
     refreshAppliedCounter();
+    saveApplied();
   }}
 
-  // ── Toggle visibility of applied cards ─────────────────────────
   function toggleApplied(e) {{
     e.preventDefault();
-    showApplied = !showApplied;
+    window._showApplied = !window._showApplied;
+    document.querySelectorAll('[data-jobid].applied-card').forEach(c => {{
+      c.style.display = window._showApplied ? '' : 'none';
+    }});
     const link = document.getElementById('appliedToggle');
-    link.style.fontStyle = showApplied ? 'italic' : '';
-    const applied = getApplied();
-    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
-      if (applied.includes(card.dataset.jobid)) {{
-        card.style.display = showApplied ? '' : 'none';
-      }}
-    }});
-  }}
-
-  // ── Boot: restore applied state from localStorage ───────────────
-  function initApplied() {{
-    const applied = getApplied();
-    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
-      const jid = card.dataset.jobid;
-      const btn = card.querySelector('.apply-toggle-btn');
-      if (applied.includes(jid)) {{
-        card.classList.add('applied-card');
-        card.style.display = 'none';
-        if (btn) {{ btn.textContent = '\\u21a9 Undo'; btn.classList.add('applied'); }}
-      }}
-    }});
-    refreshAppliedCounter();
+    if (link) link.textContent = (window._showApplied ? 'Hide' : 'Show') + ' applied (' + document.getElementById('appliedCount').textContent + ')';
   }}
 
   function applyFilters() {{
     const q = document.getElementById('searchBox').value.toLowerCase();
     const minScoreRaw = document.getElementById('minScoreBox').value;
     const minScore = minScoreRaw === '' ? null : parseFloat(minScoreRaw);
-    const applied  = getApplied();
     document.querySelectorAll('.card').forEach(card => {{
       const jid      = card.dataset.jobid || '';
-      const isApp    = applied.includes(jid);
+      const isApp    = appliedSet.has(jid);
       // Applied cards obey the showApplied toggle independently of filters
       if (isApp) {{
-        card.style.display = showApplied ? '' : 'none';
+        card.style.display = window._showApplied ? '' : 'none';
         return;
       }}
       const text     = card.innerText.toLowerCase();
@@ -2876,7 +2913,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   }}
 
   // Run on page load
-  initApplied();
+  loadApplied();
 </script>
 </body>
 </html>"""
@@ -2973,8 +3010,23 @@ def generate_archive(score_ref: float = 0.0):
         except Exception as exc:
             print(f"  [archive] Could not query DB: {exc}")
 
+    # Read applied.json so archive page can pre-populate without an extra fetch
+    archive_applied: list[str] = []
+    applied_json_path = os.path.join(OUTPUT_DIR, "applied.json")
+    if os.path.exists(applied_json_path):
+        try:
+            with open(applied_json_path, "r", encoding="utf-8") as _f:
+                archive_applied = json.load(_f)
+        except Exception:
+            pass
+
     archive_data_json = json.dumps(
-        {"jobs": all_jobs, "score_ref": score_ref, "desired_score": DESIRED_SCORE},
+        {
+            "jobs": all_jobs,
+            "score_ref": score_ref,
+            "desired_score": DESIRED_SCORE,
+            "applied_ids": archive_applied,
+        },
         ensure_ascii=False,
     )
 
@@ -3139,12 +3191,19 @@ footer {{
 const ARCHIVE_DATA = {archive_data_json};
 const LS_KEY = 'jss_applied';
 
+// Seed appliedSet from server-embedded applied_ids merged with localStorage
+let appliedSet = new Set(ARCHIVE_DATA.applied_ids || []);
+try {{
+  const local = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+  local.forEach(id => appliedSet.add(id));
+}} catch(e) {{}}
+
 function getApplied() {{
-  try {{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }}
-  catch (e) {{ return []; }}
+  return Array.from(appliedSet);
 }}
 
 function saveApplied(arr) {{
+  appliedSet = new Set(arr);
   localStorage.setItem(LS_KEY, JSON.stringify(arr));
 }}
 
@@ -3195,9 +3254,8 @@ function buildCard(job, isApplied) {{
 }}
 
 function undoApplied(jid, btn) {{
-  let applied = getApplied();
-  applied = applied.filter(id => id !== jid);
-  saveApplied(applied);
+  appliedSet.delete(jid);
+  saveApplied(Array.from(appliedSet));
   // Remove card from applied section
   const card = btn.closest('[data-jobid]');
   if (card) card.remove();
@@ -3229,7 +3287,6 @@ function updateCounts() {{
 
 // ── Boot ─────────────────────────────────────────────────────────
 (function init() {{
-  const applied     = getApplied();
   const jobs        = ARCHIVE_DATA.jobs || [];
   const appliedGrid = document.getElementById('appliedGrid');
   const expiredGrid = document.getElementById('expiredGrid');
@@ -3238,7 +3295,7 @@ function updateCounts() {{
   let expiredHtml = '';
 
   for (const job of jobs) {{
-    const isApp = applied.includes(job.id);
+    const isApp = appliedSet.has(job.id);
     if (isApp) {{
       appliedHtml += buildCard(job, true);
     }} else if (job.is_expired) {{
