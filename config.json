@@ -1,39 +1,56 @@
 {
   "search_queries": [
-    "control systems engineer"
+    "control systems engineer Netherlands",
+    "GNC engineer Netherlands",
+    "model predictive control engineer Netherlands",
+    "motion control engineer Netherlands",
+    "robotics control engineer Netherlands",
+    "mechatronics engineer control Netherlands",
+    "guidance navigation control engineer",
+    "junior control engineer simulink matlab Netherlands"
   ],
   "scored_keywords": [
     {
-      "weight": 100,
+      "weight": 50,
       "keywords": [
-        "mpc",
         "model predictive control",
-        "robust control",
-        "h-infinity",
-        "h infinity",
-        "mu-synthesis",
-        "nonlinear control",
-        "nonlinear systems",
-        "kalman",
-        "state observer",
-        "luenberger",
+        "mpc",
         "lqr",
         "lqg",
+        "h-infinity",
+        "h infinity",
+        "robust control",
+        "optimal control",
+        "nonlinear control",
+        "adaptive control",
+        "sliding mode control",
+        "gain scheduling",
+        "kalman filter",
+        "extended kalman filter",
+        "unscented kalman filter",
+        "ekf",
+        "ukf",
+        "state estimation",
         "state-space",
         "state space",
         "system identification",
         "sysid",
         "gnc",
-        "guidance navigation control",
-        "deep learning",
-        "machine learning",
-        "python",
-        "pytorch",
-        "tensorflow"
+        "guidance navigation and control",
+        "flight control law",
+        "attitude control",
+        "trajectory optimization",
+        "convex optimization",
+        "linear matrix inequalities",
+        "lmi",
+        "observer design",
+        "feedback linearization",
+        "stochastic control",
+        "control allocation"
       ]
     },
     {
-      "weight": 2,
+      "weight": 10,
       "keywords": [
         "matlab",
         "simulink",
@@ -44,21 +61,25 @@
         "servomotor",
         "mechatronics",
         "mechatronic",
-        "robotics",
-        "robot",
-        "aerospace",
         "avionics",
         "flight control",
         "embedded control",
         "real-time control",
-        "real time control"
+        "real time control",
+        "hardware-in-the-loop",
+        "hil",
+        "model-in-the-loop",
+        "mil",
+        "software-in-the-loop",
+        "sil",
+        "controller",
+        "sensor fusion"
       ]
     },
     {
-      "weight": 1,
+      "weight": 2,
       "keywords": [
         "control",
-        "automation",
         "dynamical systems",
         "high-tech",
         "high tech",
@@ -74,8 +95,6 @@
         "frequency domain",
         "bode",
         "nyquist",
-        "optical",
-        "lithography",
         "unmanned",
         "uav",
         "drone",
@@ -97,7 +116,10 @@
     "siemens s7",
     "step 7",
     "beckhoff ads",
-    "codesys"
+    "codesys",
+    "plc",
+    "scada",
+    "hmi"
   ],
   "senior_patterns": [
     "\\bsenior\\b",
@@ -117,7 +139,7 @@
   "results_per_query": 30,
   "hours_old": 672,
   "min_keywords": 3,
-  "desired_score": 300,
-  "site_title": "My Job Search",
+  "desired_score": 80,
+  "site_title": "Control Theory Jobs NL",
   "country": "Netherlands"
 }
