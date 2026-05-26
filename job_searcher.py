@@ -632,49 +632,59 @@ def save_to_db(
 # ANALYTICS DATA PREPARATION
 # ─────────────────────────────────────────────────────────────────
 
-# Categories Oscar considers "control theory" jobs — used for the analytics toggle
-_CONTROL_THEORY_CATEGORIES = {"GNC/Aerospace", "High-Tech/Precision", "General Control"}
-
-
-def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
+def _aggregate_records(
+    records: list[dict],
+    period_keys: list[str],
+    granularity: str = "week",
+) -> dict:
     """
     Aggregate a list of job records into the chart payload shape.
-    Pulled out of _load_analytics_data so the same logic can produce
-    both the full payload and a control-theory-only filtered payload.
+
+    granularity: "week" (default) groups by ISO week string "YYYY-Www";
+                 "day" groups by run_date string "YYYY-MM-DD".
+
+    Records passed in must already be deduplicated by job_id (first-seen only).
     """
     all_categories = [
         "GNC/Aerospace", "High-Tech/Precision", "Robotics", "General Control",
         "Blacklisted-PLC", "Blacklisted-Other", "Rejected-Senior", "Rejected-No-Gate",
     ]
 
-    def week_key(r):
+    def period_key(r: dict) -> str:
+        if granularity == "day":
+            return r["run_date"]
         return f"{r['year']}-W{r['week_number']:02d}"
 
     accepted = [r for r in records if not r["rejection_reason"]]
     rejected = [r for r in records if r["rejection_reason"]]
 
-    jobs_per_week     = {wk: 0 for wk in week_keys}
-    rejected_per_week = {wk: 0 for wk in week_keys}
+    jobs_per_period     = {pk: 0 for pk in period_keys}
+    rejected_per_period = {pk: 0 for pk in period_keys}
     for r in accepted:
-        jobs_per_week[week_key(r)] += 1
+        pk = period_key(r)
+        if pk in jobs_per_period:
+            jobs_per_period[pk] += 1
     for r in rejected:
-        rejected_per_week[week_key(r)] += 1
+        pk = period_key(r)
+        if pk in rejected_per_period:
+            rejected_per_period[pk] += 1
 
-    cat_per_week = {wk: {cat: 0 for cat in all_categories} for wk in week_keys}
+    cat_per_period = {pk: {cat: 0 for cat in all_categories} for pk in period_keys}
     for r in records:
-        wk  = week_key(r)
+        pk  = period_key(r)
         cat = r["category"] or "General Control"
-        if wk in cat_per_week and cat in cat_per_week[wk]:
-            cat_per_week[wk][cat] += 1
+        if pk in cat_per_period and cat in cat_per_period[pk]:
+            cat_per_period[pk][cat] += 1
 
     sources = ["linkedin", "indeed", "other"]
-    src_per_week = {wk: {s: 0 for s in sources} for wk in week_keys}
+    src_per_period = {pk: {s: 0 for s in sources} for pk in period_keys}
     for r in accepted:
-        wk  = week_key(r)
+        pk  = period_key(r)
         src = (r["site"] or "other").lower()
         if src not in sources:
             src = "other"
-        src_per_week[wk][src] += 1
+        if pk in src_per_period:
+            src_per_period[pk][src] += 1
 
     company_counts: dict[str, int] = {}
     for r in accepted:
@@ -682,46 +692,51 @@ def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
         company_counts[c] = company_counts.get(c, 0) + 1
     top_companies = sorted(company_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
-    ratio_per_week = []
-    for wk in week_keys:
-        acc = jobs_per_week[wk]
-        rej = rejected_per_week[wk]
+    ratio_per_period = []
+    for pk in period_keys:
+        acc = jobs_per_period[pk]
+        rej = rejected_per_period[pk]
         total = acc + rej
-        ratio_per_week.append({
-            "week":     wk,
+        ratio_per_period.append({
+            "week":     pk,
             "accepted": acc,
             "rejected": rej,
             "total":    total,
             "accept_pct": round(acc / total * 100, 1) if total else 0,
         })
 
-    weekly_accepted_list = [jobs_per_week[wk] for wk in week_keys]
+    period_accepted_list = [jobs_per_period[pk] for pk in period_keys]
     rolling_avg = []
-    for i in range(len(weekly_accepted_list)):
-        window = weekly_accepted_list[max(0, i - 3): i + 1]
+    for i in range(len(period_accepted_list)):
+        window = period_accepted_list[max(0, i - 3): i + 1]
         rolling_avg.append(round(sum(window) / len(window), 2))
 
-    fit_sum   = {wk: 0.0 for wk in week_keys}
-    fit_count = {wk: 0   for wk in week_keys}
+    fit_sum   = {pk: 0.0 for pk in period_keys}
+    fit_count = {pk: 0   for pk in period_keys}
     for r in accepted:
-        wk = week_key(r)
-        fit_sum[wk]   += r["fit_score"] or 0
-        fit_count[wk] += 1
-    avg_fit_per_week = [
-        round(fit_sum[wk] / fit_count[wk], 2) if fit_count[wk] else 0
-        for wk in week_keys
+        pk = period_key(r)
+        if pk in fit_sum:
+            fit_sum[pk]   += r["fit_score"] or 0
+            fit_count[pk] += 1
+    avg_fit_per_period = [
+        round(fit_sum[pk] / fit_count[pk], 2) if fit_count[pk] else 0
+        for pk in period_keys
     ]
 
-    target_per_week = {wk: 0 for wk in week_keys}
+    target_per_period = {pk: 0 for pk in period_keys}
     for r in accepted:
         if r["is_target"]:
-            target_per_week[week_key(r)] += 1
+            pk = period_key(r)
+            if pk in target_per_period:
+                target_per_period[pk] += 1
 
-    desired_per_week = {wk: 0 for wk in week_keys}
+    desired_per_period = {pk: 0 for pk in period_keys}
     if DESIRED_SCORE > 0:
         for r in accepted:
             if (r["fit_score"] or 0) >= DESIRED_SCORE:
-                desired_per_week[week_key(r)] += 1
+                pk = period_key(r)
+                if pk in desired_per_period:
+                    desired_per_period[pk] += 1
 
     total_accept = len(accepted)
     total_reject = len(rejected)
@@ -729,19 +744,19 @@ def _aggregate_records(records: list[dict], week_keys: list[str]) -> dict:
         round(sum(r["fit_score"] or 0 for r in accepted) / total_accept, 2)
         if total_accept else 0
     )
-    total_desired = sum(desired_per_week.values())
+    total_desired = sum(desired_per_period.values())
 
     return {
-        "jobs_per_week":     [jobs_per_week[wk] for wk in week_keys],
-        "rejected_per_week": [rejected_per_week[wk] for wk in week_keys],
+        "jobs_per_week":     [jobs_per_period[pk] for pk in period_keys],
+        "rejected_per_week": [rejected_per_period[pk] for pk in period_keys],
         "rolling_avg":       rolling_avg,
-        "avg_fit_per_week":  avg_fit_per_week,
-        "target_per_week":   [target_per_week[wk] for wk in week_keys],
-        "desired_per_week":  [desired_per_week[wk] for wk in week_keys],
-        "cat_per_week":      {cat: [cat_per_week[wk][cat] for wk in week_keys] for cat in all_categories},
-        "src_per_week":      {src: [src_per_week[wk][src] for wk in week_keys] for src in sources},
+        "avg_fit_per_week":  avg_fit_per_period,
+        "target_per_week":   [target_per_period[pk] for pk in period_keys],
+        "desired_per_week":  [desired_per_period[pk] for pk in period_keys],
+        "cat_per_week":      {cat: [cat_per_period[pk][cat] for pk in period_keys] for cat in all_categories},
+        "src_per_week":      {src: [src_per_period[pk][src] for pk in period_keys] for src in sources},
         "top_companies":     [{"company": c, "count": n} for c, n in top_companies],
-        "ratio_per_week":    ratio_per_week,
+        "ratio_per_week":    ratio_per_period,
         "summary": {
             "total_seen":     len(records),
             "total_accepted": total_accept,
@@ -758,8 +773,13 @@ def _load_analytics_data() -> dict:
     that will be embedded as JSON into analytics.html.
     Returns an empty-safe dict even if the DB does not yet exist.
 
-    Returns two payloads under keys 'all' and 'control_theory' so the
-    UI can toggle between them without re-fetching data.
+    Deduplication: each job_id is counted only once, using the row from its
+    earliest run_date.  This prevents jobs that re-appear across multiple
+    scrape runs from inflating weekly/daily totals.
+
+    Two granularities are returned:
+      all_weekly — grouped by ISO week  ("YYYY-Www")
+      all_daily  — grouped by calendar day ("YYYY-MM-DD"), last 90 days
     """
     if not os.path.exists(DB_PATH):
         return {}
@@ -774,81 +794,94 @@ def _load_analytics_data() -> dict:
     if not rows:
         return {}
 
-    records = [dict(r) for r in rows]
+    all_rows = [dict(r) for r in rows]
 
-    # Build first_seen_date: job_id -> earliest run_date across all records
-    first_seen_date: dict[str, str] = {}
-    for r in records:
+    # ── Step 1: deduplicate by job_id, keeping the first-seen row ────
+    seen_jids: set[str] = set()
+    records: list[dict] = []
+    # Rows are already ordered by run_date ASC so the first encounter is earliest.
+    for r in all_rows:
         jid = r["job_id"]
-        if jid not in first_seen_date or r["run_date"] < first_seen_date[jid]:
-            first_seen_date[jid] = r["run_date"]
+        if jid not in seen_jids:
+            seen_jids.add(jid)
+            records.append(r)
 
-    # Build sorted unique list of "YYYY-Www" strings — shared across both views
+    # Build first_seen_date map from the deduplicated records (run_date IS first-seen here).
+    first_seen_date: dict[str, str] = {r["job_id"]: r["run_date"] for r in records}
+
+    total_runs = len(set(r["run_date"] for r in all_rows))
+    last_run   = max(r["run_date"] for r in all_rows)
+
+    # ── Step 2: weekly keys ───────────────────────────────────────────
     week_keys: list[str] = sorted(
         set(f"{r['year']}-W{r['week_number']:02d}" for r in records)
     )
 
-    # Full payload — all records
-    full = _aggregate_records(records, week_keys)
+    # ── Step 3: daily keys — last 90 calendar days that have any data ─
+    # Include every date in the continuous range so the chart axis is uniform.
+    if records:
+        min_date = datetime.strptime(min(r["run_date"] for r in records), "%Y-%m-%d")
+        max_date = datetime.strptime(max(r["run_date"] for r in records), "%Y-%m-%d")
+        cutoff   = max_date - timedelta(days=89)          # 90-day window inclusive
+        start    = max(min_date, cutoff)
+        day_keys: list[str] = []
+        cur = start
+        while cur <= max_date:
+            day_keys.append(cur.strftime("%Y-%m-%d"))
+            cur += timedelta(days=1)
+    else:
+        day_keys = []
 
-    # Control-theory payload — only records whose category is in the control-theory set.
-    # We keep rejected jobs out of this filter regardless of their category labels —
-    # the toggle is about "show me only matched control-theory jobs".
-    ct_records = [
-        r for r in records
-        if (r["category"] or "") in _CONTROL_THEORY_CATEGORIES and not r["rejection_reason"]
-    ]
-    # For the control-theory view, "rejected" loses meaning (we already filtered) —
-    # the rejected/ratio series will be zero, which is correct.
-    control = _aggregate_records(ct_records, week_keys)
+    # ── Step 4: aggregate for both granularities ──────────────────────
+    full_weekly = _aggregate_records(records, week_keys, granularity="week")
+    full_daily  = _aggregate_records(records, day_keys,  granularity="day")
 
-    total_runs = len(set(r["run_date"] for r in records))
-    last_run   = max(r["run_date"] for r in records)
+    for full in (full_weekly, full_daily):
+        full["summary"]["total_runs"] = total_runs
+        full["summary"]["last_run"]   = last_run
 
-    # Augment summary blocks with run-level metadata (only meaningful for the full view)
-    full["summary"]["total_runs"] = total_runs
-    full["summary"]["last_run"]   = last_run
-    control["summary"]["total_runs"] = total_runs
-    control["summary"]["last_run"]   = last_run
-
-    # Compute new_jobs_per_week for full and control payloads.
-    # "New" = first time a job_id appears (first_seen_week == that week).
-    # We only count accepted jobs for this series.
-    def _compute_new_jobs_per_week(recs_subset: list[dict]) -> list[int]:
-        # Count each accepted job_id exactly once, in the week it was first seen globally.
-        seen_jids: set[str] = set()
+    # ── Step 5: new_jobs series for both granularities ────────────────
+    # For weekly: first-seen week of each accepted job.
+    def _new_jobs_weekly() -> list[int]:
         counts: dict[str, int] = {wk: 0 for wk in week_keys}
-        for r in recs_subset:
+        for r in records:
             if r["rejection_reason"]:
                 continue
-            jid = r["job_id"]
-            if jid in seen_jids:
-                continue
-            seen_jids.add(jid)
-            fs_date = first_seen_date.get(jid, r["run_date"])
-            parsed = datetime.strptime(fs_date, "%Y-%m-%d")
-            iso = parsed.isocalendar()
-            fsw = f"{iso[0]}-W{iso[1]:02d}"
+            fs_date = r["run_date"]               # deduplicated, so this IS first-seen
+            parsed  = datetime.strptime(fs_date, "%Y-%m-%d")
+            iso     = parsed.isocalendar()
+            fsw     = f"{iso[0]}-W{iso[1]:02d}"
             if fsw in counts:
                 counts[fsw] += 1
         return [counts[wk] for wk in week_keys]
 
-    full["new_jobs_per_week"]    = _compute_new_jobs_per_week(records)
-    control["new_jobs_per_week"] = _compute_new_jobs_per_week(ct_records)
+    # For daily: first-seen date of each accepted job (only if within day_keys range).
+    def _new_jobs_daily() -> list[int]:
+        day_set = set(day_keys)
+        counts: dict[str, int] = {dk: 0 for dk in day_keys}
+        for r in records:
+            if r["rejection_reason"]:
+                continue
+            dk = r["run_date"]
+            if dk in day_set:
+                counts[dk] += 1
+        return [counts[dk] for dk in day_keys]
 
-    # Lightweight individual accepted job records for client-side score filtering.
-    # Keys shortened to keep embedded JSON small: wk=week, sc=score,
-    # cat=category, tgt=is_target, src=site, co=company, fsw=first_seen_week.
+    full_weekly["new_jobs_per_week"] = _new_jobs_weekly()
+    full_daily["new_jobs_per_week"]  = _new_jobs_daily()
+
+    # ── Step 6: lightweight per-job records for client-side filtering ─
+    # One entry per job_id (deduplicated).  Includes both wk and fsd (first-seen date)
+    # so the JS _rebuildViewFromRecords can work in both granularities.
     job_records = []
     for r in records:
         if r["rejection_reason"]:
             continue
-        jid = r["job_id"]
-        fs_date = first_seen_date.get(jid, r["run_date"])
-        parsed = datetime.strptime(fs_date, "%Y-%m-%d")
-        iso = parsed.isocalendar()
-        fsw = f"{iso[0]}-W{iso[1]:02d}"
-        sc = round(r["fit_score"] or 0, 1)
+        fs_date = r["run_date"]
+        parsed  = datetime.strptime(fs_date, "%Y-%m-%d")
+        iso     = parsed.isocalendar()
+        fsw     = f"{iso[0]}-W{iso[1]:02d}"
+        sc      = round(r["fit_score"] or 0, 1)
         job_records.append({
             "wk":  f"{r['year']}-W{r['week_number']:02d}",
             "sc":  sc,
@@ -857,14 +890,18 @@ def _load_analytics_data() -> dict:
             "src": (r["site"] or "other").lower(),
             "co":  (r["company"] or "Unknown").strip(),
             "fsw": fsw,
+            "fsd": fs_date,          # first-seen YYYY-MM-DD for daily mode
             "ds":  1 if (DESIRED_SCORE > 0 and sc >= DESIRED_SCORE) else 0,
         })
 
     return {
         "week_labels":    week_keys,
-        "all":            full,
-        "control_theory": control,
-        "control_theory_categories": sorted(_CONTROL_THEORY_CATEGORIES),
+        "day_labels":     day_keys,
+        "all_weekly":     full_weekly,
+        "all_daily":      full_daily,
+        # Keep "all" as an alias pointing to weekly so existing JS references
+        # (e.g. inside _rebuildViewFromRecords) continue to work.
+        "all":            full_weekly,
         "job_records":    job_records,
         "desired_score":  DESIRED_SCORE,
     }
@@ -1003,6 +1040,26 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
   background: #1a3a5c; color: white; border-color: #1a3a5c;
 }}
 
+/* ── Granularity toggle (Daily / Weekly) ─────────────────────── */
+.gran-toggle {{
+  background: #f0f2f5; border-bottom: 1px solid #e0e0e0;
+  padding: 10px 32px; display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap;
+}}
+.gran-btn {{
+  font-size: 12px; font-weight: 600; padding: 5px 16px;
+  border-radius: 6px; border: 1px solid #cbd5e1;
+  background: white; color: #475569; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}}
+.gran-btn:hover {{ background: #e2e8f0; }}
+.gran-btn.active {{
+  background: #1a3a5c; color: white; border-color: #1a3a5c;
+}}
+.gran-label {{
+  font-size: 12px; font-weight: 600; color: #475569; margin-right: 4px;
+}}
+
 /* ── View toggle ─────────────────────────────────────────────── */
 .view-toggle {{
   background: white; border-bottom: 1px solid #e0e0e0;
@@ -1012,12 +1069,6 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 4px; }}
 .view-toggle label {{
   display: inline-flex; align-items: center; gap: 8px;
   cursor: pointer; user-select: none; font-weight: 500; color: #444;
-}}
-.view-toggle input[type="checkbox"] {{
-  width: 16px; height: 16px; cursor: pointer; accent-color: #1a3a5c;
-}}
-.view-toggle .toggle-hint {{
-  font-size: 12px; color: #888;
 }}
 
 /* ── Layout ──────────────────────────────────────────────────── */
@@ -1098,7 +1149,7 @@ footer {{
   .charts-grid {{ grid-template-columns: 1fr; }}
   .stat-cards  {{ grid-template-columns: repeat(2, 1fr); padding: 14px 16px; }}
   .section     {{ padding: 16px; }}
-  header, .range-strip, .view-toggle {{ padding-left: 16px; padding-right: 16px; }}
+  header, .range-strip, .gran-toggle, .view-toggle {{ padding-left: 16px; padding-right: 16px; }}
   .range-quick {{ margin-left: 0; }}
 }}
 @media (max-width: 480px) {{
@@ -1127,29 +1178,30 @@ footer {{
   </div>
 </div>
 
+<!-- Granularity toggle: Daily / Weekly -->
+<div class="gran-toggle" id="granToggle" style="display:none;">
+  <span class="gran-label">View:</span>
+  <button class="gran-btn active" id="btnWeekly" onclick="setGranularity('week', this)">Weekly</button>
+  <button class="gran-btn"        id="btnDaily"  onclick="setGranularity('day',  this)">Daily</button>
+</div>
+
 <!-- Range selector strip -->
 <div class="range-strip" id="rangeStrip" style="display:none;">
-  <label for="fromWeek">From week</label>
-  <select id="fromWeek" onchange="onRangeDropdown()"></select>
-  <label for="toWeek">To week</label>
-  <select id="toWeek" onchange="onRangeDropdown()"></select>
-  <div class="range-quick">
-    <button class="range-btn" onclick="setQuickRange(4,  this)">Last 4 weeks</button>
-    <button class="range-btn" onclick="setQuickRange(8,  this)">Last 8 weeks</button>
-    <button class="range-btn" onclick="setQuickRange(12, this)">Last 12 weeks</button>
+  <label for="fromPeriod" id="fromPeriodLabel">From week</label>
+  <select id="fromPeriod" onchange="onRangeDropdown()"></select>
+  <label for="toPeriod" id="toPeriodLabel">To week</label>
+  <select id="toPeriod" onchange="onRangeDropdown()"></select>
+  <div class="range-quick" id="rangeQuickBtns">
+    <button class="range-btn" onclick="setQuickRange(4,  this)">Last 4</button>
+    <button class="range-btn" onclick="setQuickRange(8,  this)">Last 8</button>
+    <button class="range-btn" onclick="setQuickRange(12, this)">Last 12</button>
+    <button class="range-btn" onclick="setQuickRange(30, this)">Last 30</button>
     <button class="range-btn" onclick="setQuickRange(0,  this)">All time</button>
   </div>
 </div>
 
 <div class="view-toggle">
-  <label>
-    <input type="checkbox" id="controlTheoryToggle" onchange="onViewToggle()">
-    Show only control-theory jobs
-  </label>
-  <span class="toggle-hint">
-    GNC/Aerospace, High-Tech/Precision, General Control only.
-  </span>
-  <span style="display:inline-flex; align-items:center; gap:8px; margin-left:16px;">
+  <span style="display:inline-flex; align-items:center; gap:8px;">
     <label for="minScoreFilter" style="font-weight:500; color:#444; white-space:nowrap;">Min score:</label>
     <input type="number" id="minScoreFilter" min="0" step="1" placeholder="any"
            oninput="onScoreFilter()"
@@ -1169,21 +1221,21 @@ footer {{
   <div class="charts-grid">
 
     <div class="chart-card chart-wide">
-      <h3>Jobs found per week (matched vs rejected)</h3>
+      <h3 id="titleChartWeekly">Jobs found per period (matched vs rejected)</h3>
       <div class="chart-wrap">
         <canvas id="chartWeekly"></canvas>
       </div>
     </div>
 
     <div class="chart-card chart-wide">
-      <h3>New jobs discovered per week (first appearance)</h3>
+      <h3 id="titleChartNewJobs">New jobs discovered per period (first appearance)</h3>
       <div class="chart-wrap">
         <canvas id="chartNewJobs"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <h3>Source: LinkedIn vs Indeed per week</h3>
+      <h3 id="titleChartSource">Source: LinkedIn vs Indeed per period</h3>
       <div class="chart-wrap">
         <canvas id="chartSource"></canvas>
       </div>
@@ -1197,35 +1249,35 @@ footer {{
   <div class="charts-grid">
 
     <div class="chart-card">
-      <h3>Rolling 4-week average (matched jobs) — is the market improving?</h3>
+      <h3 id="titleChartTrend">Rolling 4-period average (matched jobs) — is the market improving?</h3>
       <div class="chart-wrap">
         <canvas id="chartTrend"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <h3>Average fit score per week</h3>
+      <h3 id="titleChartFit">Average fit score per period</h3>
       <div class="chart-wrap">
         <canvas id="chartFit"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <h3>Target company appearances per week</h3>
+      <h3 id="titleChartTarget">Target company appearances per period</h3>
       <div class="chart-wrap">
         <canvas id="chartTarget"></canvas>
       </div>
     </div>
 
     <div class="chart-card" id="chartDesiredCard" style="display:none;">
-      <h3>Desired matches per week (score &ge; desired threshold)</h3>
+      <h3 id="titleChartDesired">Desired matches per period (score &ge; desired threshold)</h3>
       <div class="chart-wrap">
         <canvas id="chartDesired"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <h3>Match rate: accepted / (accepted + rejected) per week</h3>
+      <h3 id="titleChartRatio">Match rate: accepted / (accepted + rejected) per period</h3>
       <div class="chart-wrap">
         <canvas id="chartRatio"></canvas>
       </div>
@@ -1262,12 +1314,12 @@ footer {{
 </div>
 
 <div class="section">
-  <div class="section-title">Weekly Breakdown Table</div>
+  <div class="section-title" id="titleBreakdownTable">Weekly Breakdown Table</div>
   <div style="background:white; border-radius:10px; border:1px solid #e8e8e8; overflow:hidden; overflow-x:auto;">
     <table id="weekTable">
       <thead>
         <tr>
-          <th class="sortable" data-col="0" data-dir="desc" onclick="sortWeekTable(this)">Week</th>
+          <th class="sortable" data-col="0" data-dir="desc" onclick="sortWeekTable(this)" id="thPeriodCol">Week</th>
           <th class="sortable" data-col="1" data-dir="desc" onclick="sortWeekTable(this)">Matched</th>
           <th class="sortable" data-col="2" data-dir="desc" onclick="sortWeekTable(this)">Rejected</th>
           <th class="sortable" data-col="3" data-dir="desc" onclick="sortWeekTable(this)">Match Rate</th>
@@ -1291,16 +1343,29 @@ footer {{
 
 <script>
 // ── Embedded analytics payload ────────────────────────────────────
-// DATA shape: {{ week_labels, all: {{...}}, control_theory: {{...}}, desired_score }}
+// DATA shape: {{ week_labels, day_labels, all_weekly, all_daily, all, desired_score }}
 const DATA = {data_json};
 const CAT_COLORS = {cat_colors_json};
 const SRC_COLORS = {src_colors_json};
 const DESIRED_SCORE = (DATA && DATA.desired_score) ? DATA.desired_score : 0;
 
+// ── Granularity state: "week" or "day" ────────────────────────────
+let GRAN = 'week';   // active granularity
+
+// Return the active label array for the current granularity.
+function activeLabels() {{
+  return GRAN === 'day' ? (DATA.day_labels || []) : (DATA.week_labels || []);
+}}
+
+// Return the base (pre-filter) aggregation for the current granularity.
+function baseAgg() {{
+  return GRAN === 'day' ? DATA.all_daily : DATA.all_weekly;
+}}
+
 // ── View state ────────────────────────────────────────────────────
-// VIEW = active aggregation (DATA.all or DATA.control_theory)
-// RANGE = [fromIdx, toIdx] inclusive indices into DATA.week_labels
-let VIEW  = (DATA && DATA.all) ? DATA.all : null;
+// VIEW = active aggregation (possibly score-filtered)
+// RANGE = [fromIdx, toIdx] inclusive indices into the active label array
+let VIEW  = (DATA && DATA.all_weekly) ? DATA.all_weekly : ((DATA && DATA.all) ? DATA.all : null);
 let RANGE = [0, 0];  // will be set during boot
 
 // ── Guard: no data yet ────────────────────────────────────────────
@@ -1330,27 +1395,88 @@ function slRolling(jobsArr) {{
   }});
 }}
 
+// ── Granularity toggle ────────────────────────────────────────────
+function setGranularity(gran, btn) {{
+  if (!hasData) return;
+  GRAN = gran;
+
+  // Update button highlight
+  document.querySelectorAll('.gran-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Update UI labels for range strip and breakdown table
+  const isDay = (gran === 'day');
+  document.getElementById('fromPeriodLabel').textContent = isDay ? 'From day' : 'From week';
+  document.getElementById('toPeriodLabel').textContent   = isDay ? 'To day'   : 'To week';
+  const thPeriod = document.getElementById('thPeriodCol');
+  if (thPeriod) thPeriod.textContent = isDay ? 'Day' : 'Week';
+  const titleBreakdown = document.getElementById('titleBreakdownTable');
+  if (titleBreakdown) titleBreakdown.textContent = isDay ? 'Daily Breakdown Table' : 'Weekly Breakdown Table';
+
+  // Update chart heading suffixes
+  const suffix = isDay ? 'per day' : 'per week';
+  [
+    ['titleChartWeekly',  `Jobs found ${{suffix}} (matched vs rejected)`],
+    ['titleChartNewJobs', `New jobs discovered ${{suffix}} (first appearance)`],
+    ['titleChartSource',  `Source: LinkedIn vs Indeed ${{suffix}}`],
+    ['titleChartTrend',   `Rolling 4-period average (matched jobs) — is the market improving?`],
+    ['titleChartFit',     `Average fit score ${{suffix}}`],
+    ['titleChartTarget',  `Target company appearances ${{suffix}}`],
+    ['titleChartDesired', `Desired matches ${{suffix}} (score ≥ ${{DESIRED_SCORE}})`],
+    ['titleChartRatio',   `Match rate: accepted / (accepted + rejected) ${{suffix}}`],
+  ].forEach(([id, text]) => {{
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }});
+
+  // Reset VIEW to the base aggregation for the new granularity (respecting any
+  // active score filter).  refreshView() rebuilds VIEW from job_records when a
+  // filter is set, otherwise it falls back to baseAgg() which now returns the
+  // correct granularity payload.
+  const minScore    = _getMinScore();
+  const newJobScore = _getNewJobMinScore();
+  if (minScore > 0 || newJobScore > 0) {{
+    let recs = DATA.job_records || [];
+    if (minScore > 0) recs = recs.filter(r => r.sc >= minScore);
+    VIEW = _rebuildViewFromRecords(recs);
+  }} else {{
+    VIEW = baseAgg();
+  }}
+
+  // Re-initialise range UI for the new label set, then re-render.
+  initRangeUI();
+}}
+
 // ── Range selector helpers ────────────────────────────────────────
 function initRangeUI() {{
   if (!hasData) return;
-  const labels = DATA.week_labels;
-  const from = document.getElementById('fromWeek');
-  const to   = document.getElementById('toWeek');
+  const labels = activeLabels();
+  const from = document.getElementById('fromPeriod');
+  const to   = document.getElementById('toPeriod');
   from.innerHTML = labels.map((l, i) => `<option value="${{i}}">${{l}}</option>`).join('');
   to.innerHTML   = labels.map((l, i) => `<option value="${{i}}">${{l}}</option>`).join('');
-  document.getElementById('rangeStrip').style.display = '';
+  document.getElementById('rangeStrip').style.display  = '';
+  document.getElementById('granToggle').style.display  = '';
 
-  // Default: last 8 weeks (or all if fewer)
-  const defaultBtn = document.querySelectorAll('.range-btn')[1]; // "Last 8 weeks"
-  setQuickRange(8, defaultBtn);
+  // Default: weekly → last 8, daily → last 30
+  const defaultN   = GRAN === 'day' ? 30 : 8;
+  // Find the quick-range button that matches the default N.
+  // Buttons are: Last 4, Last 8, Last 12, Last 30, All time
+  const quickBtns = document.querySelectorAll('.range-btn');
+  let defaultBtn = null;
+  quickBtns.forEach(b => {{
+    const match = b.textContent.match(/\\d+/);
+    if (match && parseInt(match[0], 10) === defaultN) defaultBtn = b;
+  }});
+  setQuickRange(defaultN, defaultBtn);
 }}
 
 function applyRange(fromIdx, toIdx) {{
-  const labels = DATA.week_labels;
+  const labels = activeLabels();
   RANGE[0] = Math.max(0, fromIdx);
   RANGE[1] = Math.min(labels.length - 1, toIdx);
-  document.getElementById('fromWeek').value = RANGE[0];
-  document.getElementById('toWeek').value   = RANGE[1];
+  document.getElementById('fromPeriod').value = RANGE[0];
+  document.getElementById('toPeriod').value   = RANGE[1];
 }}
 
 function setQuickRange(n, btn) {{
@@ -1358,7 +1484,7 @@ function setQuickRange(n, btn) {{
   document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
 
-  const total = DATA.week_labels.length;
+  const total = activeLabels().length;
   if (n === 0 || n >= total) {{
     applyRange(0, total - 1);
   }} else {{
@@ -1371,8 +1497,8 @@ function setQuickRange(n, btn) {{
 function onRangeDropdown() {{
   // Clear quick-range highlight when user manually picks dropdowns
   document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
-  const from = parseInt(document.getElementById('fromWeek').value, 10);
-  const to   = parseInt(document.getElementById('toWeek').value,   10);
+  const from = parseInt(document.getElementById('fromPeriod').value, 10);
+  const to   = parseInt(document.getElementById('toPeriod').value,   10);
   if (from <= to) {{
     RANGE[0] = from;
     RANGE[1] = to;
@@ -1419,7 +1545,8 @@ function renderStatCards() {{
   const totalDesired = slDesired.reduce((a, b) => a + b, 0);
 
   const s = VIEW.summary;
-  const rangeLabel = `${{DATA.week_labels[RANGE[0]]}} – ${{DATA.week_labels[RANGE[1]]}}`;
+  const _al = activeLabels();
+  const rangeLabel = `${{_al[RANGE[0]]}} – ${{_al[RANGE[1]]}}`;
 
   container.innerHTML = `
     <div class="stat-card">
@@ -1489,7 +1616,7 @@ function buildChartWeekly() {{
   CHARTS.weekly = new Chart(document.getElementById('chartWeekly'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [
         {{
           label: 'Matched',
@@ -1518,7 +1645,7 @@ function buildChartWeekly() {{
 // ── Chart 2: Category stacked area line ──────────────────────────
 function buildChartCategory() {{
   if (!hasData) return;
-  const slLabels = sl(DATA.week_labels);
+  const slLabels = sl(activeLabels());
   const datasets = Object.entries(VIEW.cat_per_week).map(([cat, vals]) => {{
     const color = CAT_COLORS[cat] || '#999999';
     return {{
@@ -1546,7 +1673,7 @@ function buildChartCategory() {{
 // ── Chart 3: Source line chart ────────────────────────────────────
 function buildChartSource() {{
   if (!hasData) return;
-  const slLabels = sl(DATA.week_labels);
+  const slLabels = sl(activeLabels());
   const datasets = Object.entries(VIEW.src_per_week).map(([src, vals]) => {{
     const color = SRC_COLORS[src] || '#888888';
     return {{
@@ -1571,7 +1698,7 @@ function buildChartSource() {{
   }});
 }}
 
-// ── Chart: New jobs discovered per week ──────────────────────────
+// ── Chart: New jobs discovered per period ────────────────────────
 function buildChartNewJobs() {{
   if (!hasData) return;
   const newArr       = sl(VIEW.new_jobs_per_week || []);
@@ -1580,7 +1707,7 @@ function buildChartNewJobs() {{
   CHARTS.newJobs = new Chart(document.getElementById('chartNewJobs'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [
         {{
           label: 'New (first appearance)',
@@ -1612,7 +1739,7 @@ function buildChartTrend() {{
   CHARTS.trend = new Chart(document.getElementById('chartTrend'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [
         {{
           label: 'Weekly matched',
@@ -1650,7 +1777,7 @@ function buildChartFit() {{
   CHARTS.fit = new Chart(document.getElementById('chartFit'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [{{
         label: 'Avg fit score (matched)',
         data: sl(VIEW.avg_fit_per_week),
@@ -1673,13 +1800,13 @@ function buildChartFit() {{
   }});
 }}
 
-// ── Chart 6: Target company count per week ───────────────────────
+// ── Chart 6: Target company count per period ─────────────────────
 function buildChartTarget() {{
   if (!hasData) return;
   CHARTS.target = new Chart(document.getElementById('chartTarget'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [{{
         label: 'Target company matches',
         data: sl(VIEW.target_per_week),
@@ -1696,7 +1823,7 @@ function buildChartTarget() {{
   }});
 }}
 
-// ── Chart: Desired matches per week ──────────────────────────────
+// ── Chart: Desired matches per period ────────────────────────────
 function buildChartDesired() {{
   const card = document.getElementById('chartDesiredCard');
   if (!hasData || DESIRED_SCORE <= 0) {{
@@ -1707,7 +1834,7 @@ function buildChartDesired() {{
   CHARTS.desired = new Chart(document.getElementById('chartDesired'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [{{
         label: `Desired matches (score ≥ ${{DESIRED_SCORE}})`,
         data: sl(VIEW.desired_per_week || []),
@@ -1737,7 +1864,7 @@ function buildChartRatio() {{
   CHARTS.ratio = new Chart(document.getElementById('chartRatio'), {{
     type: 'line',
     data: {{
-      labels: sl(DATA.week_labels),
+      labels: sl(activeLabels()),
       datasets: [{{
         label: 'Match rate (%)',
         data: pcts,
@@ -1818,13 +1945,14 @@ function buildCompanyTable() {{
   }}).join('');
 }}
 
-// ── Weekly breakdown table (with sort) ───────────────────────────
-let _weekSortCol = 0;   // default sort: Week column
+// ── Period breakdown table (with sort) ───────────────────────────
+let _weekSortCol = 0;   // default sort: Period column
 let _weekSortDir = -1;  // -1 = desc (newest first)
 
 function buildWeekTable() {{
   if (!hasData) return;
-  const tbody   = document.getElementById('weekTbody');
+  const tbody  = document.getElementById('weekTbody');
+  const labels = activeLabels();
 
   // Build row data for the selected range (newest first default)
   const rows = [];
@@ -1847,7 +1975,7 @@ function buildWeekTable() {{
     }}
 
     rows.push({{
-      week:      DATA.week_labels[i],
+      week:      labels[i],
       matched,
       rejected,
       matchPct:  matchPct !== null ? matchPct : -1,
@@ -1855,7 +1983,7 @@ function buildWeekTable() {{
       target,
       trendBadge,
       // sortable numeric values for each column (col index matches th data-col)
-      sortVals: [DATA.week_labels[i], matched, rejected, matchPct !== null ? matchPct : -1, avgFit || 0, target],
+      sortVals: [labels[i], matched, rejected, matchPct !== null ? matchPct : -1, avgFit || 0, target],
     }});
   }}
 
@@ -1913,10 +2041,10 @@ function renderAll() {{
 }}
 
 // ── Score-filter re-aggregation ───────────────────────────────────
-// When a min-score or control-theory filter is active we rebuild VIEW
-// from DATA.job_records (individual accepted jobs) so the charts
-// reflect exactly the filtered subset.  Rejected counts become 0 in
-// this mode (rejected jobs have no score and are not in job_records).
+// When a min-score filter is active we rebuild VIEW from DATA.job_records
+// (individual accepted jobs) so the charts reflect exactly the filtered
+// subset.  Rejected counts become 0 in this mode (rejected jobs have no
+// score and are not in job_records).
 
 const _ALL_CATS = [
   "GNC/Aerospace","High-Tech/Precision","Robotics","General Control",
@@ -1926,9 +2054,14 @@ const _SRCS = ["linkedin","indeed","other"];
 
 function _rebuildViewFromRecords(recs) {{
   // recs = already-filtered subset of DATA.job_records
-  const wkIdx = {{}};
-  DATA.week_labels.forEach((wk, i) => wkIdx[wk] = i);
-  const n = DATA.week_labels.length;
+  // Uses GRAN to decide whether to bucket by ISO week (r.wk / r.fsw) or
+  // calendar day (r.fsd — first-seen YYYY-MM-DD).
+  const labels = activeLabels();
+  const pkIdx  = {{}};
+  labels.forEach((lbl, i) => pkIdx[lbl] = i);
+  const n = labels.length;
+
+  const isDay = (GRAN === 'day');
 
   const jobsArr     = new Array(n).fill(0);
   const fitSum      = new Array(n).fill(0);
@@ -1940,7 +2073,11 @@ function _rebuildViewFromRecords(recs) {{
   const coCounts    = {{}};
 
   for (const r of recs) {{
-    const i = wkIdx[r.wk];
+    // Pick the period key depending on granularity.
+    // For daily mode, r.fsd (first-seen date) is the bucket key.
+    // For weekly mode, r.wk (run-week) is the bucket key.
+    const pk = isDay ? r.fsd : r.wk;
+    const i  = pkIdx[pk];
     if (i === undefined) continue;
     jobsArr[i]++;
     fitSum[i]  += r.sc;
@@ -1969,13 +2106,17 @@ function _rebuildViewFromRecords(recs) {{
     ? Math.round(recs.reduce((s, r) => s + r.sc, 0) / totalAcc * 100) / 100
     : 0;
 
-  // new_jobs_per_week: count per-week using fsw (first-seen week).
+  // new_jobs: count per-period using the first-seen key (fsw for weekly, fsd for daily).
   // Apply the new-job score filter (separate dimension) from #newJobScoreFilter.
   const newJobMinScore = parseFloat(document.getElementById('newJobScoreFilter')?.value) || 0;
-  const newJobsArr = DATA.week_labels.map(wk =>
-    (DATA.job_records || []).filter(r => r.fsw === wk && r.sc >= newJobMinScore).length
+  const newJobsArr = labels.map(lbl =>
+    (DATA.job_records || []).filter(r => {{
+      const fsKey = isDay ? r.fsd : r.fsw;
+      return fsKey === lbl && r.sc >= newJobMinScore;
+    }}).length
   );
 
+  const baseSum = isDay ? DATA.all_daily?.summary : DATA.all_weekly?.summary;
   return {{
     jobs_per_week:     jobsArr,
     rejected_per_week: new Array(n).fill(0),
@@ -1994,8 +2135,8 @@ function _rebuildViewFromRecords(recs) {{
       total_rejected: 0,
       avg_fit:        avgFitAll,
       total_desired:  desiredArr.reduce((a, b) => a + b, 0),
-      total_runs:     DATA.all?.summary?.total_runs || 0,
-      last_run:       DATA.all?.summary?.last_run   || '',
+      total_runs:     baseSum?.total_runs || 0,
+      last_run:       baseSum?.last_run   || '',
     }},
   }};
 }}
@@ -2010,35 +2151,28 @@ function _getNewJobMinScore() {{
   return isNaN(v) ? 0 : v;
 }}
 
-// ── Unified view refresh (toggle + score filter) ───────────────────
+// ── Unified view refresh (score filter) ───────────────────────────
 function refreshView() {{
   if (!hasData) return;
-  const isControl    = document.getElementById('controlTheoryToggle').checked;
-  const minScore     = _getMinScore();
-  const newJobScore  = _getNewJobMinScore();
+  const minScore    = _getMinScore();
+  const newJobScore = _getNewJobMinScore();
 
-  if (minScore > 0 || isControl || newJobScore > 0) {{
+  if (minScore > 0 || newJobScore > 0) {{
     // Filter individual records and re-aggregate
     let recs = DATA.job_records || [];
-    if (isControl) {{
-      const ctSet = new Set(DATA.control_theory_categories || []);
-      recs = recs.filter(r => ctSet.has(r.cat));
-    }}
     if (minScore > 0) {{
       recs = recs.filter(r => r.sc >= minScore);
     }}
     VIEW = _rebuildViewFromRecords(recs);
   }} else {{
-    // No filters active — use the fast pre-aggregated payload.
-    // new_jobs_per_week is pre-computed in the Python payload.
-    VIEW = DATA.all;
+    // No filters active — use the fast pre-aggregated payload for current granularity.
+    VIEW = baseAgg();
   }}
 
   destroyAllCharts();
   renderAll();
 }}
 
-function onViewToggle()        {{ if (hasData) refreshView(); }}
 function onScoreFilter()       {{ if (hasData) refreshView(); }}
 function onNewJobScoreFilter() {{ if (hasData) refreshView(); }}
 

@@ -13,7 +13,7 @@ Once deployed, your dashboard looks like this:
 | Page | What it shows |
 |---|---|
 | `index.html` | Ranked job cards, colour-coded new vs returning, fit score bar, 🔥 top-match banner |
-| `analytics.html` | Weekly trends, new-job curve, target-company chart, desired-match history |
+| `analytics.html` | Weekly **or daily** trends, new-job curve, target-company chart, desired-match history |
 | `settings.html` | Edit every filter, keyword, weight and search parameter in the browser — no code needed |
 
 ---
@@ -128,6 +128,16 @@ score = Σ (weight × number of unique keywords matched in that tier)
 ```
 
 Tiers, weights, and keywords are fully configurable in Settings. The default setup has three tiers (high / mid / low relevance). Jobs are sorted by score descending; target companies are always pinned to the top.
+
+---
+
+## Analytics
+
+The analytics dashboard tracks your job market over time. Key behaviours:
+
+- **Each job is counted only once** — if the same listing reappears across multiple daily runs it is counted on the day it was *first seen*, never double-counted.
+- **Weekly / Daily toggle** — switch all charts between weekly aggregation (default) and day-by-day view with a single click. The range selector adapts automatically (default: 8 weeks or last 30 days).
+- Charts covered: accepted jobs, new jobs, desired matches, target-company appearances, source split (Indeed vs LinkedIn), average fit score.
 
 ---
 
