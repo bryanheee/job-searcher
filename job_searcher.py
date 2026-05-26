@@ -201,10 +201,6 @@ TARGET_COMPANIES: list[str] = _cfg.get("target_companies", _DEFAULT_CONFIG["targ
 # 0 = disabled (no highlighting).
 DESIRED_SCORE: int = int(_cfg.get("desired_score", 0))
 
-# Dashboard window — jobs first seen within this many days appear on the dashboard.
-# 0 = show only the current run (old behaviour).
-DASHBOARD_DAYS: int = int(_cfg.get("dashboard_days", 14))
-
 
 # ─────────────────────────────────────────────────────────────────
 # SCRAPER
@@ -490,7 +486,7 @@ def _init_db() -> sqlite3.Connection:
         )
     """)
     # Migrate existing DBs that predate these columns
-    for _col, _type in [("date_posted", "TEXT"), ("matched_keywords", "TEXT")]:
+    for _col, _type in [("date_posted", "TEXT"), ("matched_keywords", "TEXT"), ("description", "TEXT")]:
         try:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {_col} {_type}")
         except Exception:
@@ -532,9 +528,10 @@ def save_to_db(
 
     def _upsert(job_id, title, company, location, site, fit_score,
                 category, is_target, job_url, rejection_reason,
-                date_posted=None, matched_keywords=None):
+                date_posted=None, matched_keywords=None, description=None):
         nonlocal rows_inserted, rows_skipped
         mk_json = json.dumps(matched_keywords) if matched_keywords else "[]"
+        desc_truncated = (description or "")[:500] if description else None
         try:
             conn.execute(
                 """
@@ -542,14 +539,14 @@ def save_to_db(
                   (job_id, run_date, year, week_number,
                    title, company, location, site,
                    fit_score, category, is_target, job_url, rejection_reason,
-                   date_posted, matched_keywords)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   date_posted, matched_keywords, description)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     job_id, run_date, year, week_number,
                     title, company, location, site,
                     fit_score, category, int(bool(is_target)),
-                    job_url, rejection_reason, date_posted, mk_json,
+                    job_url, rejection_reason, date_posted, mk_json, desc_truncated,
                 ),
             )
             if conn.execute("SELECT changes()").fetchone()[0]:
@@ -592,6 +589,7 @@ def save_to_db(
             rejection_reason = None,
             date_posted      = date_posted_str,
             matched_keywords = list(row.get("matched_keywords") or []),
+            description      = str(row.get("description", "") or "")[:500],
         )
 
     # ── Rejected jobs ──────────────────────────────────────────────
@@ -2305,19 +2303,17 @@ def save_results(df: pd.DataFrame):
 def generate_site(df: pd.DataFrame):
     """Generate a self-contained index.html for GitHub Pages.
 
-    When DASHBOARD_DAYS > 0, the rendered cards come from all accepted jobs in
-    jobs.db whose earliest run_date is within the last DASHBOARD_DAYS days.
-    df (current run) is kept as a fallback and is always used for alltime_max.
-    When DASHBOARD_DAYS == 0, only the current run (df) is shown (old behaviour).
+    All accepted jobs in jobs.db are always shown on the dashboard.
+    The user manages visibility via Discard and Applied buttons only.
+    df (current run) is kept as a fallback when the DB is empty.
     """
     updated  = datetime.now().strftime("%d %B %Y at %H:%M UTC")
     today    = datetime.now().strftime("%Y-%m-%d")
-    cutoff   = (datetime.now() - timedelta(days=DASHBOARD_DAYS)).strftime("%Y-%m-%d")
 
-    # ── DB queries (previously_seen, alltime_max, and N-day window) ──
+    # ── DB queries (previously_seen, alltime_max, all accepted jobs) ──
     previously_seen: set[str] = set()   # job_ids first seen before today
     alltime_max: float = 0.0
-    # first_seen_map: job_id -> first-seen date string (from N-day window query)
+    # first_seen_map: job_id -> first-seen date string
     first_seen_map: dict[str, str] = {}
     display_df: pd.DataFrame = pd.DataFrame()
 
@@ -2332,57 +2328,41 @@ def generate_site(df: pd.DataFrame):
             if _max_row and _max_row[0] is not None:
                 alltime_max = float(_max_row[0])
 
-            if DASHBOARD_DAYS > 0:
-                # Query accepted jobs whose date_posted is within the last
-                # DASHBOARD_DAYS days (i.e. posted by the company recently).
-                # Falls back to MIN(run_date) for rows where date_posted is NULL
-                # (scraped before this column was added).
-                window_rows = _conn.execute(
-                    """
-                    SELECT job_id, title, company, location, job_url, site,
-                           fit_score, matched_keywords, is_target,
-                           MIN(run_date) AS first_seen,
-                           MAX(date_posted) AS date_posted
-                    FROM   jobs
-                    WHERE  (rejection_reason IS NULL OR rejection_reason = '')
-                    GROUP  BY job_id
-                    HAVING COALESCE(MAX(date_posted), MIN(run_date)) >= :cutoff
-                    ORDER  BY is_target DESC, fit_score DESC
-                    """,
-                    {"cutoff": cutoff},
-                ).fetchall()
-                _conn.close()
+            # Query ALL accepted jobs — no date filter
+            window_rows = _conn.execute(
+                """
+                SELECT job_id, title, company, location, job_url, site,
+                       fit_score, matched_keywords, is_target,
+                       MIN(run_date) AS first_seen,
+                       MAX(date_posted) AS date_posted,
+                       MAX(description) AS description
+                FROM   jobs
+                WHERE  (rejection_reason IS NULL OR rejection_reason = '')
+                GROUP  BY job_id
+                ORDER  BY is_target DESC, fit_score DESC
+                """
+            ).fetchall()
+            _conn.close()
 
-                if window_rows:
-                    cols = [
-                        "job_id", "title", "company", "location",
-                        "job_url", "site", "fit_score", "matched_keywords",
-                        "is_target", "first_seen", "date_posted",
-                    ]
-                    display_df = pd.DataFrame(window_rows, columns=cols)
-                    # Deserialise matched_keywords JSON strings
-                    display_df["matched_keywords"] = display_df["matched_keywords"].apply(
-                        lambda v: json.loads(v) if isinstance(v, str) and v.startswith("[") else []
-                    )
-                    display_df["is_target"] = display_df["is_target"].astype(bool)
-                    # Build first_seen_map and previously_seen from the window data
-                    for _, r in display_df.iterrows():
-                        first_seen_map[r["job_id"]] = r["first_seen"]
-                        if r["first_seen"] < today:
-                            previously_seen.add(r["job_id"])
-            else:
-                # DASHBOARD_DAYS == 0 — old behaviour: show current run only
-                rows_prev = _conn.execute(
-                    "SELECT DISTINCT job_id FROM jobs WHERE run_date < ?", (today,)
-                ).fetchall()
-                _conn.close()
-                previously_seen = {r[0] for r in rows_prev}
+            if window_rows:
+                cols = [
+                    "job_id", "title", "company", "location",
+                    "job_url", "site", "fit_score", "matched_keywords",
+                    "is_target", "first_seen", "date_posted", "description",
+                ]
+                display_df = pd.DataFrame(window_rows, columns=cols)
+                display_df["is_target"] = display_df["is_target"].astype(bool)
+                # Build first_seen_map and previously_seen from the query data
+                for _, r in display_df.iterrows():
+                    first_seen_map[r["job_id"]] = r["first_seen"]
+                    if r["first_seen"] < today:
+                        previously_seen.add(r["job_id"])
 
         except Exception as exc:
             print(f"  [site] Could not query DB for dashboard: {exc}")
             # Fall back silently — display_df stays empty, previously_seen stays empty
 
-    # Fall back to current-run df when DB window produced nothing or DASHBOARD_DAYS == 0
+    # Fall back to current-run df when DB query produced nothing
     if display_df.empty:
         display_df = df.copy() if not df.empty else pd.DataFrame()
 
@@ -2457,15 +2437,22 @@ def generate_site(df: pd.DataFrame):
             site_name  = str(row.get("site",     "")).lower()
             link       = str(row.get("job_url",  "#"))
             date       = _format_date(row)
-            kws = list(row.get("matched_keywords") or [])
+            raw_kws = row.get("matched_keywords", [])
+            if isinstance(raw_kws, str):
+                try:
+                    raw_kws = json.loads(raw_kws)
+                except Exception:
+                    raw_kws = []
+            kws = [str(k) for k in (raw_kws or []) if k]
             if not kws:
-                # Old DB rows have "[]" — try to recompute from title alone
-                title_text = title.lower()
-                _, kws = _compute_fit_score(title_text)
-            keywords   = ", ".join(kws[:6])
-            summary    = str(row.get("description", ""))[:280].strip()
-            if summary:
-                summary += "..."
+                # Fallback: recompute from title text
+                _title_text = str(row.get("title", "")).lower()
+                _, kws = _compute_fit_score(_title_text)
+            keywords = ", ".join(kws[:6]) if kws else ""
+
+            desc_text = str(row.get("description", "") or "").strip()
+            desc_display = (desc_text[:200] + "...") if len(desc_text) > 200 else desc_text
+            desc_html = f'<div class="job-desc">{desc_display}</div>' if desc_display else ""
 
             # New vs returning detection.
             # If first_seen_map is populated (DB window mode):
@@ -2546,8 +2533,8 @@ def generate_site(df: pd.DataFrame):
     <span class="score-num {score_cls}">{score}</span>
     {bar_html}
   </div>
-  <p class="summary">{summary}</p>
   <div class="keywords">Keywords: {keywords}</div>
+  {desc_html}
   <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
     <a class="apply-btn" href="{link}" target="_blank" rel="noopener">View posting</a>
     <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="{jid}">&#10003; Applied</button>
@@ -2685,8 +2672,8 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .bar-fill.score-mid  {{ background: #ffc107; }}
 .bar-fill.score-low  {{ background: #dc3545; }}
 
-.summary  {{ font-size: 12px; color: #555; line-height: 1.5; }}
 .keywords {{ font-size: 11px; color: #999; }}
+.job-desc {{ font-size: 12px; color: #666; margin-top: 6px; line-height: 1.5; }}
 
 .apply-btn {{
   display: inline-block; margin-top: 4px;
@@ -3034,13 +3021,13 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 def generate_archive(score_ref: float = 0.0):
     """
     Generate archive.html — shows applied jobs (from localStorage) and
-    expired jobs (older than DASHBOARD_DAYS).
+    discarded jobs.
 
     All jobs are embedded as ARCHIVE_DATA JSON so JS can split them
-    into "Applied" vs "Expired" sections at load time based on localStorage.
+    into "Applied" vs "Discarded" sections at load time based on localStorage.
+    There is no expiry mechanic — jobs stay until the user Discards them.
     """
     updated = datetime.now().strftime("%d %B %Y at %H:%M UTC")
-    cutoff  = (datetime.now() - timedelta(days=DASHBOARD_DAYS)).strftime("%Y-%m-%d")
 
     # Determine score_ref: use passed value, else query DB, else theoretical max
     if score_ref <= 0.0:
@@ -3058,8 +3045,7 @@ def generate_archive(score_ref: float = 0.0):
         if score_ref <= 0.0:
             score_ref = _MAX_POSSIBLE_SCORE if _MAX_POSSIBLE_SCORE > 0 else 1.0
 
-    # Query ALL accepted jobs from DB (no date filter) so applied jobs are
-    # always shown regardless of age.
+    # Query ALL accepted jobs from DB (no date filter).
     all_jobs: list[dict] = []
     if os.path.exists(DB_PATH):
         try:
@@ -3069,7 +3055,8 @@ def generate_archive(score_ref: float = 0.0):
                 SELECT job_id, title, company, location, job_url, site,
                        fit_score, matched_keywords, is_target,
                        MIN(run_date) AS first_seen,
-                       MAX(date_posted) AS date_posted
+                       MAX(date_posted) AS date_posted,
+                       MAX(description) AS description
                 FROM   jobs
                 WHERE  (rejection_reason IS NULL OR rejection_reason = '')
                 GROUP  BY job_id
@@ -3080,19 +3067,26 @@ def generate_archive(score_ref: float = 0.0):
             cols = [
                 "job_id", "title", "company", "location",
                 "job_url", "site", "fit_score", "matched_keywords",
-                "is_target", "first_seen", "date_posted",
+                "is_target", "first_seen", "date_posted", "description",
             ]
             for r in rows:
                 row = dict(zip(cols, r))
-                # Deserialise matched_keywords
+                # Deserialise matched_keywords robustly
                 mk = row.get("matched_keywords") or "[]"
-                try:
-                    kws = json.loads(mk) if isinstance(mk, str) and mk.startswith("[") else []
-                except Exception:
-                    kws = []
-                # Determine if expired (based on date_posted / first_seen vs cutoff)
-                effective_date = row.get("date_posted") or row.get("first_seen") or ""
-                is_expired = bool(effective_date and effective_date < cutoff)
+                if isinstance(mk, str):
+                    try:
+                        kws = json.loads(mk)
+                    except Exception:
+                        kws = []
+                else:
+                    kws = list(mk) if mk else []
+                kws = [str(k) for k in kws if k]
+                if not kws:
+                    _title_text = str(row.get("title", "")).lower()
+                    _, kws = _compute_fit_score(_title_text)
+                # Description truncated for display
+                desc_text = str(row.get("description", "") or "").strip()
+                desc_display = (desc_text[:200] + "...") if len(desc_text) > 200 else desc_text
                 all_jobs.append({
                     "id":          row["job_id"],
                     "title":       row["title"] or "",
@@ -3105,7 +3099,8 @@ def generate_archive(score_ref: float = 0.0):
                     "is_target":   bool(row["is_target"]),
                     "date_posted": row["date_posted"] or "",
                     "first_seen":  row["first_seen"] or "",
-                    "is_expired":  is_expired,
+                    "is_expired":  False,
+                    "description": desc_display,
                 })
         except Exception as exc:
             print(f"  [archive] Could not query DB: {exc}")
@@ -3236,6 +3231,7 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .bar-fill.score-mid  {{ background: #ffc107; }}
 .bar-fill.score-low  {{ background: #dc3545; }}
 .keywords {{ font-size: 11px; color: #999; }}
+.job-desc {{ font-size: 12px; color: #666; margin-top: 6px; line-height: 1.5; }}
 .undo-btn {{
   display: inline-block; margin-top: 4px;
   padding: 5px 12px; background: #166534;
@@ -3309,8 +3305,7 @@ footer {{
 
 <footer>
   Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
-  Applied state is stored in your browser&apos;s localStorage &nbsp;&middot;&nbsp;
-  Expired = older than {DASHBOARD_DAYS} days
+  Applied and Discarded state is stored in your browser&apos;s localStorage
 </footer>
 
 <script>
@@ -3367,6 +3362,7 @@ function buildCard(job, isApplied) {{
     : '';
   const cardCls = isApplied ? 'card applied-card' : (job.is_target ? 'card target-card' : 'card');
 
+  const descHtml = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
   return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
   <div class="card-header">
     <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
@@ -3383,6 +3379,7 @@ function buildCard(job, isApplied) {{
     <div class="score-bar"><div class="bar-fill ${{cls}}" style="width:${{barPct}}%"></div></div>
   </div>
   <div class="keywords">Keywords: ${{kws || '—'}}</div>
+  ${{descHtml}}
   <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
     <a class="view-btn" href="${{job.url}}" target="_blank" rel="noopener">View posting</a>
     ${{actionBtn}}
@@ -3403,6 +3400,7 @@ function buildDiscardedCard(job) {{
   const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
   const statusBadge  = `<span class="badge badge-discarded">Discarded</span>`;
   const cardCls      = job.is_target ? 'card target-card' : 'card';
+  const descHtml2    = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
   return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
   <div class="card-header">
     <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
@@ -3419,6 +3417,7 @@ function buildDiscardedCard(job) {{
     <div class="score-bar"><div class="bar-fill ${{cls}}" style="width:${{barPct}}%"></div></div>
   </div>
   <div class="keywords">Keywords: ${{kws || '—'}}</div>
+  ${{descHtml2}}
   <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
     <a class="view-btn" href="${{job.url}}" target="_blank" rel="noopener">View posting</a>
     <button class="restore-btn" onclick="restoreDiscarded('${{job.id}}', this)">&#8617; Restore</button>
