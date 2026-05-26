@@ -471,28 +471,30 @@ def _init_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS jobs (
-            job_id          TEXT NOT NULL,
-            run_date        TEXT NOT NULL,
-            year            INTEGER NOT NULL,
-            week_number     INTEGER NOT NULL,
-            title           TEXT,
-            company         TEXT,
-            location        TEXT,
-            site            TEXT,
-            fit_score       REAL,
-            category        TEXT,
-            is_target       INTEGER,
-            job_url         TEXT,
+            job_id           TEXT NOT NULL,
+            run_date         TEXT NOT NULL,
+            year             INTEGER NOT NULL,
+            week_number      INTEGER NOT NULL,
+            title            TEXT,
+            company          TEXT,
+            location         TEXT,
+            site             TEXT,
+            fit_score        REAL,
+            category         TEXT,
+            is_target        INTEGER,
+            job_url          TEXT,
             rejection_reason TEXT,
-            date_posted     TEXT,
+            date_posted      TEXT,
+            matched_keywords TEXT,
             PRIMARY KEY (job_id, run_date)
         )
     """)
-    # Migrate existing DBs that predate the date_posted column
-    try:
-        conn.execute("ALTER TABLE jobs ADD COLUMN date_posted TEXT")
-    except Exception:
-        pass  # Column already exists — ignore
+    # Migrate existing DBs that predate these columns
+    for _col, _type in [("date_posted", "TEXT"), ("matched_keywords", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {_col} {_type}")
+        except Exception:
+            pass  # Column already exists — ignore
     conn.commit()
     return conn
 
@@ -529,8 +531,10 @@ def save_to_db(
     rows_skipped  = 0
 
     def _upsert(job_id, title, company, location, site, fit_score,
-                category, is_target, job_url, rejection_reason, date_posted=None):
+                category, is_target, job_url, rejection_reason,
+                date_posted=None, matched_keywords=None):
         nonlocal rows_inserted, rows_skipped
+        mk_json = json.dumps(matched_keywords) if matched_keywords else "[]"
         try:
             conn.execute(
                 """
@@ -538,14 +542,14 @@ def save_to_db(
                   (job_id, run_date, year, week_number,
                    title, company, location, site,
                    fit_score, category, is_target, job_url, rejection_reason,
-                   date_posted)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   date_posted, matched_keywords)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     job_id, run_date, year, week_number,
                     title, company, location, site,
                     fit_score, category, int(bool(is_target)),
-                    job_url, rejection_reason, date_posted,
+                    job_url, rejection_reason, date_posted, mk_json,
                 ),
             )
             if conn.execute("SELECT changes()").fetchone()[0]:
@@ -587,6 +591,7 @@ def save_to_db(
             job_url          = url,
             rejection_reason = None,
             date_posted      = date_posted_str,
+            matched_keywords = list(row.get("matched_keywords") or []),
         )
 
     # ── Rejected jobs ──────────────────────────────────────────────
