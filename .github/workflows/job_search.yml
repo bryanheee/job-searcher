@@ -76,6 +76,7 @@ jobs:
           cp index.html     _site/index.html
           cp analytics.html _site/analytics.html
           cp settings.html  _site/settings.html
+          cp archive.html   _site/archive.html
           # config.json must exist (job_searcher.py writes defaults if absent)
           cp config.json    _site/config.json
 

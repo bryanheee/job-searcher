@@ -201,6 +201,10 @@ TARGET_COMPANIES: list[str] = _cfg.get("target_companies", _DEFAULT_CONFIG["targ
 # 0 = disabled (no highlighting).
 DESIRED_SCORE: int = int(_cfg.get("desired_score", 0))
 
+# Dashboard window — jobs first seen within this many days appear on the dashboard.
+# 0 = show only the current run (old behaviour).
+DASHBOARD_DAYS: int = int(_cfg.get("dashboard_days", 14))
+
 
 # ─────────────────────────────────────────────────────────────────
 # SCRAPER
@@ -480,9 +484,15 @@ def _init_db() -> sqlite3.Connection:
             is_target       INTEGER,
             job_url         TEXT,
             rejection_reason TEXT,
+            date_posted     TEXT,
             PRIMARY KEY (job_id, run_date)
         )
     """)
+    # Migrate existing DBs that predate the date_posted column
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN date_posted TEXT")
+    except Exception:
+        pass  # Column already exists — ignore
     conn.commit()
     return conn
 
@@ -519,7 +529,7 @@ def save_to_db(
     rows_skipped  = 0
 
     def _upsert(job_id, title, company, location, site, fit_score,
-                category, is_target, job_url, rejection_reason):
+                category, is_target, job_url, rejection_reason, date_posted=None):
         nonlocal rows_inserted, rows_skipped
         try:
             conn.execute(
@@ -527,14 +537,15 @@ def save_to_db(
                 INSERT OR IGNORE INTO jobs
                   (job_id, run_date, year, week_number,
                    title, company, location, site,
-                   fit_score, category, is_target, job_url, rejection_reason)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   fit_score, category, is_target, job_url, rejection_reason,
+                   date_posted)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     job_id, run_date, year, week_number,
                     title, company, location, site,
                     fit_score, category, int(bool(is_target)),
-                    job_url, rejection_reason,
+                    job_url, rejection_reason, date_posted,
                 ),
             )
             if conn.execute("SELECT changes()").fetchone()[0]:
@@ -555,6 +566,15 @@ def save_to_db(
             str(row.get("description", "") or "")
         ).lower()
         category = _classify_job(title, full_text, rejection_reason="")
+        # Normalise date_posted to a YYYY-MM-DD string (or None)
+        _dp = row.get("date_posted") or row.get("date")
+        if _dp is not None and not (isinstance(_dp, float) and pd.isna(_dp)):
+            try:
+                date_posted_str = pd.to_datetime(_dp).strftime("%Y-%m-%d")
+            except Exception:
+                date_posted_str = None
+        else:
+            date_posted_str = None
         _upsert(
             job_id           = jid,
             title            = title,
@@ -566,6 +586,7 @@ def save_to_db(
             is_target        = bool(row.get("is_target", False)),
             job_url          = url,
             rejection_reason = None,
+            date_posted      = date_posted_str,
         )
 
     # ── Rejected jobs ──────────────────────────────────────────────
@@ -2277,51 +2298,115 @@ def save_results(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────
 
 def generate_site(df: pd.DataFrame):
-    """Generate a self-contained index.html for GitHub Pages."""
-    updated   = datetime.now().strftime("%d %B %Y at %H:%M UTC")
-    total     = len(df)
-    target_n  = int(df["is_target"].sum()) if not df.empty else 0
+    """Generate a self-contained index.html for GitHub Pages.
 
-    # Build set of job_ids seen in previous scrape runs (run_date < today)
-    today = datetime.now().strftime("%Y-%m-%d")
-    previously_seen: set[str] = set()
-    # All-time best score — used as the 100% benchmark for the score bar.
-    # Falls back to current run max, then _MAX_POSSIBLE_SCORE if DB/run is empty.
+    When DASHBOARD_DAYS > 0, the rendered cards come from all accepted jobs in
+    jobs.db whose earliest run_date is within the last DASHBOARD_DAYS days.
+    df (current run) is kept as a fallback and is always used for alltime_max.
+    When DASHBOARD_DAYS == 0, only the current run (df) is shown (old behaviour).
+    """
+    updated  = datetime.now().strftime("%d %B %Y at %H:%M UTC")
+    today    = datetime.now().strftime("%Y-%m-%d")
+    cutoff   = (datetime.now() - timedelta(days=DASHBOARD_DAYS)).strftime("%Y-%m-%d")
+
+    # ── DB queries (previously_seen, alltime_max, and N-day window) ──
+    previously_seen: set[str] = set()   # job_ids first seen before today
     alltime_max: float = 0.0
+    # first_seen_map: job_id -> first-seen date string (from N-day window query)
+    first_seen_map: dict[str, str] = {}
+    display_df: pd.DataFrame = pd.DataFrame()
+
     if os.path.exists(DB_PATH):
         try:
             _conn = sqlite3.connect(DB_PATH)
-            rows_prev = _conn.execute(
-                "SELECT DISTINCT job_id FROM jobs WHERE run_date < ?", (today,)
-            ).fetchall()
+
+            # All-time best score benchmark
             _max_row = _conn.execute(
                 "SELECT MAX(fit_score) FROM jobs WHERE fit_score IS NOT NULL"
             ).fetchone()
-            _conn.close()
-            previously_seen = {r[0] for r in rows_prev}
             if _max_row and _max_row[0] is not None:
                 alltime_max = float(_max_row[0])
-        except Exception as exc:
-            print(f"  [site] Could not query previously-seen jobs: {exc}")
 
-    # If DB had nothing, fall back to current run's best, then theoretical max
+            if DASHBOARD_DAYS > 0:
+                # Query accepted jobs whose date_posted is within the last
+                # DASHBOARD_DAYS days (i.e. posted by the company recently).
+                # Falls back to MIN(run_date) for rows where date_posted is NULL
+                # (scraped before this column was added).
+                window_rows = _conn.execute(
+                    """
+                    SELECT job_id, title, company, location, job_url, site,
+                           fit_score, matched_keywords, is_target,
+                           MIN(run_date) AS first_seen,
+                           MAX(date_posted) AS date_posted
+                    FROM   jobs
+                    WHERE  (rejection_reason IS NULL OR rejection_reason = '')
+                    GROUP  BY job_id
+                    HAVING COALESCE(MAX(date_posted), MIN(run_date)) >= :cutoff
+                    ORDER  BY is_target DESC, fit_score DESC
+                    """,
+                    {"cutoff": cutoff},
+                ).fetchall()
+                _conn.close()
+
+                if window_rows:
+                    cols = [
+                        "job_id", "title", "company", "location",
+                        "job_url", "site", "fit_score", "matched_keywords",
+                        "is_target", "first_seen", "date_posted",
+                    ]
+                    display_df = pd.DataFrame(window_rows, columns=cols)
+                    # Deserialise matched_keywords JSON strings
+                    display_df["matched_keywords"] = display_df["matched_keywords"].apply(
+                        lambda v: json.loads(v) if isinstance(v, str) and v.startswith("[") else []
+                    )
+                    display_df["is_target"] = display_df["is_target"].astype(bool)
+                    # Build first_seen_map and previously_seen from the window data
+                    for _, r in display_df.iterrows():
+                        first_seen_map[r["job_id"]] = r["first_seen"]
+                        if r["first_seen"] < today:
+                            previously_seen.add(r["job_id"])
+            else:
+                # DASHBOARD_DAYS == 0 — old behaviour: show current run only
+                rows_prev = _conn.execute(
+                    "SELECT DISTINCT job_id FROM jobs WHERE run_date < ?", (today,)
+                ).fetchall()
+                _conn.close()
+                previously_seen = {r[0] for r in rows_prev}
+
+        except Exception as exc:
+            print(f"  [site] Could not query DB for dashboard: {exc}")
+            # Fall back silently — display_df stays empty, previously_seen stays empty
+
+    # Fall back to current-run df when DB window produced nothing or DASHBOARD_DAYS == 0
+    if display_df.empty:
+        display_df = df.copy() if not df.empty else pd.DataFrame()
+
+    # If DB had no score data, fall back to current run's best, then theoretical max
     if alltime_max == 0.0 and not df.empty:
         alltime_max = float(df["fit_score"].max()) if "fit_score" in df.columns else 0.0
     if alltime_max == 0.0:
         alltime_max = _MAX_POSSIBLE_SCORE if _MAX_POSSIBLE_SCORE > 0 else 1.0
     SCORE_REF = alltime_max
-    high_fit  = int((df["fit_score"] >= 0.4 * SCORE_REF).sum()) if not df.empty else 0
 
+    total    = len(display_df)
+    target_n = int(display_df["is_target"].sum()) if not display_df.empty else 0
+    high_fit = int((display_df["fit_score"] >= 0.4 * SCORE_REF).sum()) if not display_df.empty else 0
 
-    # Count new jobs today that meet the desired score threshold (for banner)
+    # Count new jobs today that meet the desired score threshold (for banner).
+    # "New" means first_seen == today (for DB window) or not in previously_seen (fallback).
     desired_new_count = 0
-    if DESIRED_SCORE > 0 and not df.empty:
-        for _, row in df.iterrows():
+    if DESIRED_SCORE > 0 and not display_df.empty:
+        for _, row in display_df.iterrows():
             title   = str(row.get("title",   "Unknown"))
             company = str(row.get("company", "Unknown"))
             link    = str(row.get("job_url", "#"))
             jid     = _job_id(title, company, link)
-            if jid not in previously_seen and float(row.get("fit_score", 0)) >= DESIRED_SCORE:
+            # A job is "new" if its first_seen is today OR it was not seen before today
+            if first_seen_map:
+                is_new_job = first_seen_map.get(jid, today) == today
+            else:
+                is_new_job = jid not in previously_seen
+            if is_new_job and float(row.get("fit_score", 0)) >= DESIRED_SCORE:
                 desired_new_count += 1
 
     # Notification banner (only shown when desired_score is active and there are matches)
@@ -2336,10 +2421,10 @@ def generate_site(df: pd.DataFrame):
         )
 
     cards_html = ""
-    if df.empty:
+    if display_df.empty:
         cards_html = '<div class="empty"><p>No relevant jobs found today. Check back tomorrow.</p></div>'
     else:
-        for _, row in df.iterrows():
+        for _, row in display_df.iterrows():
             is_target  = bool(row.get("is_target", False))
             score      = float(row.get("fit_score", 0))
             title      = str(row.get("title",    "Unknown"))
@@ -2353,9 +2438,16 @@ def generate_site(df: pd.DataFrame):
             if summary:
                 summary += "..."
 
-            # New vs returning detection
-            jid    = _job_id(title, company, link)
-            is_new = jid not in previously_seen
+            # New vs returning detection.
+            # If first_seen_map is populated (DB window mode):
+            #   new  = first_seen date is today
+            #   seen = first_seen date is before today (job persisted from earlier run)
+            # Fallback (current-run mode): new = jid not in previously_seen set.
+            jid = _job_id(title, company, link)
+            if first_seen_map:
+                is_new = first_seen_map.get(jid, today) == today
+            else:
+                is_new = jid not in previously_seen
 
             # Salary — surfaced if jobspy returns it
             salary_str = ""
@@ -2398,7 +2490,7 @@ def generate_site(df: pd.DataFrame):
                 card_classes += " returning-card"
 
             cards_html += f"""
-<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}">
+<div class="{card_classes}" data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}" data-jobid="{jid}">
   <div class="card-header">
     <h3><a href="{link}" target="_blank" rel="noopener">{title}</a></h3>
     <div class="badges">{desired_badge}{star_badge}{newness_badge}{site_badge}{salary_badge}</div>
@@ -2415,7 +2507,10 @@ def generate_site(df: pd.DataFrame):
   </div>
   <p class="summary">{summary}</p>
   <div class="keywords">Keywords: {keywords}</div>
-  <a class="apply-btn" href="{link}" target="_blank" rel="noopener">View posting</a>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="{link}" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="{jid}">&#10003; Applied</button>
+  </div>
 </div>"""
 
     html = f"""<!DOCTYPE html>
@@ -2501,6 +2596,16 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .badge-desired {{ background: #fde8e8; color: #c0392b; border: 1px solid #e74c3c; font-weight: 700; }}
 .returning-card {{ background: #f0fff4 !important; border-left: 4px solid #28a745; }}
 .target-card.returning-card {{ border-left: 4px solid #f39c12; }}
+.applied-card {{ opacity: 0.5; border-left: 4px solid #adb5bd !important; }}
+.applied-card h3 a {{ text-decoration: line-through; color: #888 !important; }}
+.apply-toggle-btn {{
+  display: inline-block; margin-top: 4px; margin-left: 6px;
+  padding: 5px 12px; background: #e2e8f0;
+  color: #334155; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}}
+.apply-toggle-btn:hover {{ background: #cbd5e1; }}
+.apply-toggle-btn.applied {{ background: #166534; color: white; }}
 
 .top-match-banner {{
   background: #fde8e8; border-bottom: 2px solid #e74c3c;
@@ -2565,6 +2670,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
     <a class="nav-link" href="analytics.html">Analytics Dashboard</a>
+    <a class="nav-link" href="archive.html">Archive</a>
     <a class="nav-link" href="settings.html">&#9881; Settings</a>
   </div>
 </header>
@@ -2576,6 +2682,12 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   <div><strong>{target_n}</strong> target companies</div>
   <div><strong>{high_fit}</strong> high fit (score &ge; {0.4 * SCORE_REF:.0f})</div>
   <div style="font-size:12px;">Sources: Indeed NL + LinkedIn</div>
+  <div style="margin-left:auto;">
+    <a id="appliedToggle" href="#" onclick="toggleApplied(event)"
+       style="font-size:12px; color:#1a3a5c; font-weight:500; text-decoration:none;">
+      Show applied (<span id="appliedCount">0</span>)
+    </a>
+  </div>
 </div>
 
 <div class="controls">
@@ -2611,12 +2723,105 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   let targetOnly   = false;
   let newOnly      = false;
   let activeSort   = 'score';
+  let showApplied  = false;
+
+  // ── localStorage helpers ────────────────────────────────────────
+  const LS_KEY = 'jss_applied';
+
+  function getApplied() {{
+    try {{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }}
+    catch (e) {{ return []; }}
+  }}
+
+  function saveApplied(arr) {{
+    localStorage.setItem(LS_KEY, JSON.stringify(arr));
+  }}
+
+  function isApplied(jid) {{
+    return getApplied().includes(jid);
+  }}
+
+  // ── Update "Show applied (N)" counter ───────────────────────────
+  function refreshAppliedCounter() {{
+    const applied = getApplied();
+    // Count only jobs that are on this page
+    let count = 0;
+    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
+      if (applied.includes(card.dataset.jobid)) count++;
+    }});
+    document.getElementById('appliedCount').textContent = count;
+  }}
+
+  // ── Toggle an individual card's applied state ───────────────────
+  function toggleAppliedCard(btn) {{
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('.card');
+    let applied = getApplied();
+
+    if (applied.includes(jid)) {{
+      // Undo
+      applied = applied.filter(id => id !== jid);
+      saveApplied(applied);
+      card.classList.remove('applied-card');
+      btn.textContent = '\\u2713 Applied';
+      btn.classList.remove('applied');
+      // Re-show if we were hiding applied
+      if (!showApplied) card.style.display = '';
+    }} else {{
+      // Mark applied
+      applied.push(jid);
+      saveApplied(applied);
+      card.classList.add('applied-card');
+      btn.textContent = '\\u21a9 Undo';
+      btn.classList.add('applied');
+      // Hide from main list if we are not showing applied
+      if (!showApplied) card.style.display = 'none';
+    }}
+    refreshAppliedCounter();
+  }}
+
+  // ── Toggle visibility of applied cards ─────────────────────────
+  function toggleApplied(e) {{
+    e.preventDefault();
+    showApplied = !showApplied;
+    const link = document.getElementById('appliedToggle');
+    link.style.fontStyle = showApplied ? 'italic' : '';
+    const applied = getApplied();
+    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
+      if (applied.includes(card.dataset.jobid)) {{
+        card.style.display = showApplied ? '' : 'none';
+      }}
+    }});
+  }}
+
+  // ── Boot: restore applied state from localStorage ───────────────
+  function initApplied() {{
+    const applied = getApplied();
+    document.querySelectorAll('.card[data-jobid]').forEach(card => {{
+      const jid = card.dataset.jobid;
+      const btn = card.querySelector('.apply-toggle-btn');
+      if (applied.includes(jid)) {{
+        card.classList.add('applied-card');
+        card.style.display = 'none';
+        if (btn) {{ btn.textContent = '\\u21a9 Undo'; btn.classList.add('applied'); }}
+      }}
+    }});
+    refreshAppliedCounter();
+  }}
 
   function applyFilters() {{
     const q = document.getElementById('searchBox').value.toLowerCase();
     const minScoreRaw = document.getElementById('minScoreBox').value;
     const minScore = minScoreRaw === '' ? null : parseFloat(minScoreRaw);
+    const applied  = getApplied();
     document.querySelectorAll('.card').forEach(card => {{
+      const jid      = card.dataset.jobid || '';
+      const isApp    = applied.includes(jid);
+      // Applied cards obey the showApplied toggle independently of filters
+      if (isApp) {{
+        card.style.display = showApplied ? '' : 'none';
+        return;
+      }}
       const text     = card.innerText.toLowerCase();
       const site     = card.dataset.site || '';
       const isTarget = card.dataset.target === 'true';
@@ -2669,6 +2874,9 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
     }});
     cards.forEach(c => grid.appendChild(c));
   }}
+
+  // Run on page load
+  initApplied();
 </script>
 </body>
 </html>"""
@@ -2677,6 +2885,384 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"\n[OK] Site generated: {out_path} ({total} jobs, {target_n} target, {high_fit} high-fit)")
+
+    # Always regenerate archive alongside index
+    generate_archive(SCORE_REF)
+
+
+# ─────────────────────────────────────────────────────────────────
+# ARCHIVE PAGE
+# ─────────────────────────────────────────────────────────────────
+
+def generate_archive(score_ref: float = 0.0):
+    """
+    Generate archive.html — shows applied jobs (from localStorage) and
+    expired jobs (older than DASHBOARD_DAYS).
+
+    All jobs are embedded as ARCHIVE_DATA JSON so JS can split them
+    into "Applied" vs "Expired" sections at load time based on localStorage.
+    """
+    updated = datetime.now().strftime("%d %B %Y at %H:%M UTC")
+    cutoff  = (datetime.now() - timedelta(days=DASHBOARD_DAYS)).strftime("%Y-%m-%d")
+
+    # Determine score_ref: use passed value, else query DB, else theoretical max
+    if score_ref <= 0.0:
+        if os.path.exists(DB_PATH):
+            try:
+                _c = sqlite3.connect(DB_PATH)
+                _row = _c.execute(
+                    "SELECT MAX(fit_score) FROM jobs WHERE fit_score IS NOT NULL"
+                ).fetchone()
+                _c.close()
+                if _row and _row[0] is not None:
+                    score_ref = float(_row[0])
+            except Exception:
+                pass
+        if score_ref <= 0.0:
+            score_ref = _MAX_POSSIBLE_SCORE if _MAX_POSSIBLE_SCORE > 0 else 1.0
+
+    # Query ALL accepted jobs from DB (no date filter) so applied jobs are
+    # always shown regardless of age.
+    all_jobs: list[dict] = []
+    if os.path.exists(DB_PATH):
+        try:
+            _conn = sqlite3.connect(DB_PATH)
+            rows = _conn.execute(
+                """
+                SELECT job_id, title, company, location, job_url, site,
+                       fit_score, matched_keywords, is_target,
+                       MIN(run_date) AS first_seen,
+                       MAX(date_posted) AS date_posted
+                FROM   jobs
+                WHERE  (rejection_reason IS NULL OR rejection_reason = '')
+                GROUP  BY job_id
+                ORDER  BY is_target DESC, fit_score DESC
+                """
+            ).fetchall()
+            _conn.close()
+            cols = [
+                "job_id", "title", "company", "location",
+                "job_url", "site", "fit_score", "matched_keywords",
+                "is_target", "first_seen", "date_posted",
+            ]
+            for r in rows:
+                row = dict(zip(cols, r))
+                # Deserialise matched_keywords
+                mk = row.get("matched_keywords") or "[]"
+                try:
+                    kws = json.loads(mk) if isinstance(mk, str) and mk.startswith("[") else []
+                except Exception:
+                    kws = []
+                # Determine if expired (based on date_posted / first_seen vs cutoff)
+                effective_date = row.get("date_posted") or row.get("first_seen") or ""
+                is_expired = bool(effective_date and effective_date < cutoff)
+                all_jobs.append({
+                    "id":          row["job_id"],
+                    "title":       row["title"] or "",
+                    "company":     row["company"] or "",
+                    "location":    row["location"] or "",
+                    "url":         row["job_url"] or "#",
+                    "site":        (row["site"] or "").lower(),
+                    "score":       round(float(row["fit_score"] or 0), 1),
+                    "keywords":    kws[:6],
+                    "is_target":   bool(row["is_target"]),
+                    "date_posted": row["date_posted"] or "",
+                    "first_seen":  row["first_seen"] or "",
+                    "is_expired":  is_expired,
+                })
+        except Exception as exc:
+            print(f"  [archive] Could not query DB: {exc}")
+
+    archive_data_json = json.dumps(
+        {"jobs": all_jobs, "score_ref": score_ref, "desired_score": DESIRED_SCORE},
+        ensure_ascii=False,
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archive — {SITE_TITLE}</title>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5; color: #2c3e50;
+}}
+header {{
+  background: #1a3a5c; color: white; padding: 22px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}}
+header h1 {{ font-size: 21px; font-weight: 600; }}
+header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
+.nav-link {{
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 14px; border-radius: 6px; white-space: nowrap;
+}}
+.nav-link:hover {{ background: rgba(255,255,255,0.15); }}
+.section-header {{
+  padding: 20px 32px 8px;
+  font-size: 16px; font-weight: 700; color: #1a3a5c;
+  border-left: 4px solid #2e86ab;
+  margin: 24px 32px 0;
+  background: white;
+  border-radius: 8px 8px 0 0;
+  border-top: 1px solid #e8e8e8;
+  border-right: 1px solid #e8e8e8;
+}}
+.grid {{
+  padding: 0 32px 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  background: white;
+  border-radius: 0 0 8px 8px;
+  border: 1px solid #e8e8e8;
+  border-top: none;
+  margin: 0 32px 8px;
+  padding-top: 16px;
+}}
+.card {{
+  background: #f8fafc; border-radius: 10px; padding: 18px 20px;
+  border: 1px solid #e8e8e8; display: flex; flex-direction: column; gap: 8px;
+}}
+.card:hover {{ box-shadow: 0 4px 18px rgba(0,0,0,0.09); }}
+.target-card {{ border-left: 4px solid #f39c12; }}
+.applied-card {{ border-left: 4px solid #166534; }}
+.card-header {{
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 8px;
+}}
+.card-header h3 {{ font-size: 14px; font-weight: 600; line-height: 1.35; }}
+.card-header h3 a {{ color: #1a3a5c; text-decoration: none; }}
+.card-header h3 a:hover {{ text-decoration: underline; }}
+.badges {{ display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; align-items: flex-end; }}
+.badge {{
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap; font-weight: 500;
+}}
+.badge-target   {{ background: #fef3cd; color: #856404; }}
+.badge-linkedin {{ background: #e8f4fd; color: #0a66c2; }}
+.badge-indeed   {{ background: #e8f8f0; color: #2e7d32; }}
+.badge-expired  {{ background: #f3f4f6; color: #6b7280; }}
+.badge-applied  {{ background: #dcfce7; color: #166534; font-weight: 700; }}
+.badge-desired  {{ background: #fde8e8; color: #c0392b; border: 1px solid #e74c3c; font-weight: 700; }}
+.card-meta {{
+  display: flex; flex-wrap: wrap; gap: 10px;
+  font-size: 12px; color: #666;
+}}
+.score-row {{
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+}}
+.score-label {{ color: #888; flex-shrink: 0; }}
+.score-num   {{ font-weight: 700; flex-shrink: 0; min-width: 36px; }}
+.score-high  {{ color: #1e7e34; }}
+.score-mid   {{ color: #856404; }}
+.score-low   {{ color: #721c24; }}
+.score-bar {{
+  flex: 1; height: 6px; background: #e8e8e8;
+  border-radius: 4px; overflow: hidden;
+}}
+.bar-fill {{
+  height: 100%; border-radius: 4px;
+}}
+.bar-fill.score-high {{ background: #28a745; }}
+.bar-fill.score-mid  {{ background: #ffc107; }}
+.bar-fill.score-low  {{ background: #dc3545; }}
+.keywords {{ font-size: 11px; color: #999; }}
+.undo-btn {{
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #166534;
+  color: white; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}}
+.undo-btn:hover {{ background: #14532d; }}
+.view-btn {{
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #1a3a5c;
+  color: white; border-radius: 6px; font-size: 12px;
+  text-decoration: none; font-weight: 500; align-self: flex-start;
+}}
+.view-btn:hover {{ background: #2e6da4; }}
+.empty-state {{
+  padding: 40px 32px; text-align: center; color: #888; font-size: 14px;
+  font-style: italic;
+}}
+footer {{
+  text-align: center; padding: 24px; font-size: 11px; color: #bbb;
+}}
+@media (max-width: 600px) {{
+  .grid {{ padding: 12px 16px; grid-template-columns: 1fr; margin: 0 16px 8px; }}
+  header, .section-header {{ padding-left: 16px; padding-right: 16px; }}
+  .section-header {{ margin: 16px 16px 0; }}
+}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Archive — {SITE_TITLE}</h1>
+    <p>Updated: {updated}</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="nav-link" href="index.html">Live Job Board</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="settings.html">&#9881; Settings</a>
+  </div>
+</header>
+
+<div id="appliedSection">
+  <div class="section-header">Applied Jobs (<span id="appliedSectionCount">0</span>)</div>
+  <div class="grid" id="appliedGrid">
+    <div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>
+  </div>
+</div>
+
+<div id="expiredSection">
+  <div class="section-header">Expired Jobs (<span id="expiredSectionCount">0</span>)</div>
+  <div class="grid" id="expiredGrid">
+    <div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>
+  </div>
+</div>
+
+<footer>
+  Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
+  Applied state is stored in your browser&apos;s localStorage &nbsp;&middot;&nbsp;
+  Expired = older than {DASHBOARD_DAYS} days
+</footer>
+
+<script>
+const ARCHIVE_DATA = {archive_data_json};
+const LS_KEY = 'jss_applied';
+
+function getApplied() {{
+  try {{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }}
+  catch (e) {{ return []; }}
+}}
+
+function saveApplied(arr) {{
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}}
+
+function scoreClass(score, ref) {{
+  if (score >= 0.6 * ref) return 'score-high';
+  if (score >= 0.3 * ref) return 'score-mid';
+  return 'score-low';
+}}
+
+function buildCard(job, isApplied) {{
+  const ref     = ARCHIVE_DATA.score_ref || 1;
+  const desired = ARCHIVE_DATA.desired_score || 0;
+  const sc      = job.score;
+  const cls     = scoreClass(sc, ref);
+  const barPct  = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws     = (job.keywords || []).join(', ');
+  const dateLbl = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge  = job.site ? `<span class="badge badge-${{job.site}}">${{job.site.toUpperCase()}}</span>` : '';
+  const targetBadge = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge = isApplied ? `<span class="badge badge-applied">&#10003; Applied</span>` : `<span class="badge badge-expired">Expired</span>`;
+  const actionBtn = isApplied
+    ? `<button class="undo-btn" onclick="undoApplied('${{job.id}}', this)">&#8617; Undo Applied</button>`
+    : '';
+  const cardCls = isApplied ? 'card applied-card' : (job.is_target ? 'card target-card' : 'card');
+
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  <div class="card-header">
+    <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
+    <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
+  </div>
+  <div class="card-meta">
+    <span>${{job.company}}</span>
+    <span>${{job.location}}</span>
+    <span>${{dateLbl}}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${{cls}}">${{sc}}</span>
+    <div class="score-bar"><div class="bar-fill ${{cls}}" style="width:${{barPct}}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${{kws || '—'}}</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${{job.url}}" target="_blank" rel="noopener">View posting</a>
+    ${{actionBtn}}
+  </div>
+</div>`;
+}}
+
+function undoApplied(jid, btn) {{
+  let applied = getApplied();
+  applied = applied.filter(id => id !== jid);
+  saveApplied(applied);
+  // Remove card from applied section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section if job is expired
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired) {{
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }}
+  updateCounts();
+}}
+
+function updateCounts() {{
+  const appliedGrid  = document.getElementById('appliedGrid');
+  const expiredGrid  = document.getElementById('expiredGrid');
+  const appliedCards = appliedGrid.querySelectorAll('[data-jobid]').length;
+  const expiredCards = expiredGrid.querySelectorAll('[data-jobid]').length;
+  document.getElementById('appliedSectionCount').textContent = appliedCards;
+  document.getElementById('expiredSectionCount').textContent = expiredCards;
+  if (appliedCards === 0 && !document.getElementById('appliedEmpty')) {{
+    appliedGrid.innerHTML = '<div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>';
+  }}
+  if (expiredCards === 0 && !document.getElementById('expiredEmpty')) {{
+    expiredGrid.innerHTML = '<div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>';
+  }}
+}}
+
+// ── Boot ─────────────────────────────────────────────────────────
+(function init() {{
+  const applied     = getApplied();
+  const jobs        = ARCHIVE_DATA.jobs || [];
+  const appliedGrid = document.getElementById('appliedGrid');
+  const expiredGrid = document.getElementById('expiredGrid');
+
+  let appliedHtml = '';
+  let expiredHtml = '';
+
+  for (const job of jobs) {{
+    const isApp = applied.includes(job.id);
+    if (isApp) {{
+      appliedHtml += buildCard(job, true);
+    }} else if (job.is_expired) {{
+      expiredHtml += buildCard(job, false);
+    }}
+  }}
+
+  if (appliedHtml) {{
+    appliedGrid.innerHTML = appliedHtml;
+  }}
+  if (expiredHtml) {{
+    expiredGrid.innerHTML = expiredHtml;
+  }}
+
+  updateCounts();
+}})();
+</script>
+</body>
+</html>"""
+
+    out_path = os.path.join(OUTPUT_DIR, "archive.html")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"[OK] Archive page generated: {out_path} ({len(all_jobs)} total jobs embedded)")
 
 
 # ─────────────────────────────────────────────────────────────────

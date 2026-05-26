@@ -384,6 +384,13 @@ footer {
       </label>
       <input type="number" id="desiredScore" min="0" step="1" value="0" style="max-width:140px;">
     </div>
+    <div class="field" style="margin-top:18px;">
+      <label>
+        Dashboard window (days)
+        <span class="hint">jobs posted by the company within this many days stay on the dashboard; 0 = current run only</span>
+      </label>
+      <input type="number" id="dashboardDays" min="0" step="1" value="14" style="max-width:140px;">
+    </div>
   </div>
 
   <!-- ── Config load status ─────────────────────────────────────── -->
@@ -575,6 +582,7 @@ function configFromForm() {
     hours_old:         parseInt(document.getElementById('hoursOld').value, 10)        || 168,
     min_keywords:      Math.max(1, parseInt(document.getElementById('minKeywords').value, 10) || 1),
     desired_score:     parseInt(document.getElementById('desiredScore').value, 10)    || 0,
+    dashboard_days:    parseInt(document.getElementById('dashboardDays').value, 10)  || 14,
     site_title:        document.getElementById('siteTitle').value.trim() || 'My Job Search',
     country:           document.getElementById('country').value.trim()   || 'Netherlands',
   };
@@ -604,6 +612,7 @@ function populateForm(cfg) {
   document.getElementById('hoursOld').value        = cfg.hours_old         ?? 168;
   document.getElementById('minKeywords').value     = cfg.min_keywords      ?? 1;
   document.getElementById('desiredScore').value    = cfg.desired_score     ?? 0;
+  document.getElementById('dashboardDays').value   = cfg.dashboard_days    ?? 14;
   document.getElementById('siteTitle').value       = cfg.site_title        ?? '';
   document.getElementById('country').value         = cfg.country           ?? '';
 }
