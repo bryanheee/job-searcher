@@ -117,7 +117,7 @@
   "results_per_query": 30,
   "hours_old": 168,
   "min_keywords": 3,
+  "desired_score": 300,
   "site_title": "My Job Search",
-  "country": "Netherlands",
-  "desired_score": 0
+  "country": "Netherlands"
 }
