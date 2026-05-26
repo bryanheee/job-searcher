@@ -200,10 +200,44 @@ pip install python-jobspy pandas schedule
 
 To clear the database and start fresh (all jobs will appear as "new"):
 
-1. Go to your repo → **Actions** → find any completed run → look at the **data-branch** commit
-2. Or: delete the `data-branch` branch entirely from your repo (Settings → Branches → delete `data-branch`)
+1. Go to your repo → **Settings** → **Branches** → find `data-branch` → delete it
 
 The next workflow run creates a new empty `jobs.db`.
+
+---
+
+## Full reset (keep your settings)
+
+To reset everything — job history, applied/discarded/maybe lists — while keeping your `config.json` intact:
+
+**Step 1 — Delete the data branch** (clears `jobs.db`):
+
+```bash
+git push origin --delete data-branch
+```
+
+Or via GitHub: repo → **Settings** → **Branches** → delete `data-branch`.
+
+**Step 2 — Reset the state files** (clears Applied / Maybe / Discarded):
+
+```bash
+echo '[]' > applied.json
+echo '[]' > discarded.json
+echo '[]' > maybe.json
+git add applied.json discarded.json maybe.json
+git commit -m "Reset state files"
+git push
+```
+
+**Step 3 — Re-run the workflow**:
+
+Go to **Actions** → **Daily Job Search** → **Run workflow**.
+
+The next run starts with a fresh database. All jobs will appear as new, and your applied/discarded/maybe lists will be empty.
+
+> **What's preserved:** everything in `config.json` — keywords, weights, search queries, filters, and all other settings.
+>
+> **What's gone:** all job history, seen/new tracking, and applied/discarded/maybe lists.
 
 ---
 
