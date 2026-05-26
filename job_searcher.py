@@ -3384,6 +3384,29 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
   padding: 40px 32px; text-align: center; color: #888; font-size: 14px;
   font-style: italic;
 }}
+.filter-bar {{
+  padding: 12px 32px; background: white;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  font-size: 13px;
+}}
+.filter-bar strong {{ color: #1a3a5c; font-size: 12px; margin-right: 4px; }}
+.filter-btn {{
+  padding: 4px 13px; border-radius: 20px;
+  border: 1px solid #d0d0d0; background: #f5f5f5;
+  cursor: pointer; font-size: 12px; font-weight: 500; color: #444;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}}
+.filter-btn.active, .filter-btn:hover {{
+  background: #1a3a5c; color: white; border-color: #1a3a5c;
+}}
+.date-input {{
+  padding: 4px 8px; border: 1px solid #d0d0d0;
+  border-radius: 6px; font-size: 12px; color: #444;
+}}
+.filter-sep {{ color: #ccc; font-size: 12px; }}
 footer {{
   text-align: center; padding: 24px; font-size: 11px; color: #bbb;
 }}
@@ -3407,6 +3430,18 @@ footer {{
     <a class="nav-link" href="settings.html">&#9881; Settings</a>
   </div>
 </header>
+
+<div class="filter-bar">
+  <strong>Show:</strong>
+  <button class="filter-btn active" onclick="setPreset('all', this)">All time</button>
+  <button class="filter-btn" onclick="setPreset('7', this)">Last 7 days</button>
+  <button class="filter-btn" onclick="setPreset('30', this)">Last 30 days</button>
+  <button class="filter-btn" onclick="setPreset('90', this)">Last 90 days</button>
+  <span class="filter-sep">&nbsp;|&nbsp;Custom:</span>
+  <input type="date" class="date-input" id="dateFrom" onchange="setCustom()">
+  <span class="filter-sep">—</span>
+  <input type="date" class="date-input" id="dateTo" onchange="setCustom()">
+</div>
 
 <div id="appliedSection">
   <div class="section-header">Applied Jobs (<span id="appliedSectionCount">0</span>)</div>
@@ -3526,7 +3561,8 @@ function buildCard(job, isApplied) {{
   const cardCls = isApplied ? 'card applied-card' : (job.is_target ? 'card target-card' : 'card');
 
   const descHtml = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
-  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  const fsDate   = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}" data-firstseen="${{fsDate}}">
   <div class="card-header">
     <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
     <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
@@ -3564,7 +3600,8 @@ function buildDiscardedCard(job) {{
   const statusBadge  = `<span class="badge badge-discarded">Discarded</span>`;
   const cardCls      = job.is_target ? 'card target-card' : 'card';
   const descHtml2    = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
-  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  const fsDate2      = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}" data-firstseen="${{fsDate2}}">
   <div class="card-header">
     <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
     <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
@@ -3602,7 +3639,8 @@ function buildMaybeCard(job) {{
   const statusBadge  = `<span class="badge" style="background:#fef3cd;color:#92400e;font-weight:700;">? Maybe</span>`;
   const cardCls      = job.is_target ? 'card target-card' : 'card';
   const descHtml3    = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
-  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  const fsDate3      = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}" data-firstseen="${{fsDate3}}">
   <div class="card-header">
     <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
     <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
@@ -3677,15 +3715,20 @@ function restoreMaybe(jid, btn) {{
   updateCounts();
 }}
 
+function countVisible(gridEl) {{
+  return Array.from(gridEl.querySelectorAll('[data-jobid]'))
+    .filter(c => c.style.display !== 'none').length;
+}}
+
 function updateCounts() {{
   const appliedGrid    = document.getElementById('appliedGrid');
   const maybeGrid      = document.getElementById('maybeGrid');
   const expiredGrid    = document.getElementById('expiredGrid');
   const discardedGrid  = document.getElementById('discardedGrid');
-  const appliedCards   = appliedGrid.querySelectorAll('[data-jobid]').length;
-  const maybeCards     = maybeGrid.querySelectorAll('[data-jobid]').length;
-  const expiredCards   = expiredGrid.querySelectorAll('[data-jobid]').length;
-  const discardedCards = discardedGrid.querySelectorAll('[data-jobid]').length;
+  const appliedCards   = countVisible(appliedGrid);
+  const maybeCards     = countVisible(maybeGrid);
+  const expiredCards   = countVisible(expiredGrid);
+  const discardedCards = countVisible(discardedGrid);
   document.getElementById('appliedSectionCount').textContent = appliedCards;
   document.getElementById('maybeSectionCount').textContent = maybeCards;
   document.getElementById('expiredSectionCount').textContent = expiredCards;
@@ -3702,6 +3745,57 @@ function updateCounts() {{
   if (discardedCards === 0 && !document.getElementById('discardedEmpty')) {{
     discardedGrid.innerHTML = '<div class="empty-state" id="discardedEmpty">No discarded jobs yet.</div>';
   }}
+}}
+
+// ── Date filter ──────────────────────────────────────────────────
+let _filterFrom = null;  // Date | null
+let _filterTo   = null;  // Date | null
+
+function setPreset(days, btn) {{
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value   = '';
+  if (days === 'all') {{
+    _filterFrom = null;
+    _filterTo   = null;
+  }} else {{
+    _filterTo   = new Date();
+    _filterFrom = new Date();
+    _filterFrom.setDate(_filterFrom.getDate() - parseInt(days));
+  }}
+  applyDateFilter();
+}}
+
+function setCustom() {{
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const fv = document.getElementById('dateFrom').value;
+  const tv = document.getElementById('dateTo').value;
+  _filterFrom = fv ? new Date(fv) : null;
+  _filterTo   = tv ? new Date(tv) : null;
+  applyDateFilter();
+}}
+
+function _inRange(dateStr) {{
+  if (!_filterFrom && !_filterTo) return true;
+  if (!dateStr) return true;   // no date → always show
+  const d = new Date(dateStr);
+  if (_filterFrom && d < _filterFrom) return false;
+  if (_filterTo) {{
+    const end = new Date(_filterTo);
+    end.setHours(23, 59, 59, 999);
+    if (d > end) return false;
+  }}
+  return true;
+}}
+
+function applyDateFilter() {{
+  ['appliedGrid','maybeGrid','expiredGrid','discardedGrid'].forEach(id => {{
+    document.getElementById(id).querySelectorAll('[data-jobid]').forEach(card => {{
+      card.style.display = _inRange(card.getAttribute('data-firstseen')) ? '' : 'none';
+    }});
+  }});
+  updateCounts();
 }}
 
 // ── Boot ─────────────────────────────────────────────────────────
