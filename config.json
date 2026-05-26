@@ -63,7 +63,9 @@
         "kalmanfilter",
         "standregeling",
         "baanoptimalisatie",
-        "stabiliteitsanalyse"
+        "stabiliteitsanalyse",
+        "control theory",
+        "filtering"
       ]
     },
     {
@@ -71,13 +73,12 @@
       "keywords": [
         "matlab",
         "simulink",
-        "control theory",
         "feedback control",
         "motion control",
         "servo",
         "servomotor",
-        "mechatronics",
         "mechatronic",
+        "mechatronics",
         "avionics",
         "flight control",
         "embedded control",
@@ -98,7 +99,10 @@
         "ruimtevaart",
         "autonome systemen",
         "precisiemechatronica",
-        "voertuigdynamica"
+        "voertuigdynamica",
+        "pid",
+        "pid control",
+        "optimization"
       ]
     },
     {
@@ -109,13 +113,10 @@
         "high tech",
         "precision",
         "semiconductor",
-        "sensor fusion",
         "localization",
         "navigation",
         "inertial",
         "signal processing",
-        "pid",
-        "pid control",
         "frequency domain",
         "bode",
         "nyquist",
@@ -171,7 +172,7 @@
   ],
   "target_companies": [],
   "results_per_query": 30,
-  "hours_old": 672,
+  "hours_old": 48,
   "min_keywords": 4,
   "desired_score": 90,
   "site_title": "Control Theory Jobs NL",
