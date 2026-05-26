@@ -553,6 +553,22 @@ def save_to_db(
                 rows_inserted += 1
             else:
                 rows_skipped += 1
+            # Backfill description and matched_keywords on ALL existing rows
+            # for this job_id where they are still missing (inserted before
+            # these columns existed). Safe to run every time — only updates
+            # rows that have NULL / empty values.
+            if desc_truncated or (mk_json and mk_json != "[]"):
+                conn.execute(
+                    """
+                    UPDATE jobs SET
+                        description      = COALESCE(NULLIF(description, ''),      ?),
+                        matched_keywords = COALESCE(NULLIF(matched_keywords, ''), NULLIF(?, '[]'), matched_keywords)
+                    WHERE job_id = ?
+                      AND (description IS NULL OR description = ''
+                           OR matched_keywords IS NULL OR matched_keywords = '[]')
+                    """,
+                    (desc_truncated, mk_json, job_id),
+                )
         except Exception as exc:
             print(f"  [DB] Insert error for '{title}': {exc}")
 
