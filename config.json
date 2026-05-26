@@ -67,11 +67,8 @@
         "real-time control",
         "real time control",
         "hardware-in-the-loop",
-        "hil",
         "model-in-the-loop",
-        "mil",
         "software-in-the-loop",
-        "sil",
         "controller",
         "sensor fusion"
       ]
@@ -79,7 +76,6 @@
     {
       "weight": 2,
       "keywords": [
-        "control",
         "dynamical systems",
         "high-tech",
         "high tech",
@@ -98,8 +94,7 @@
         "unmanned",
         "uav",
         "drone",
-        "satellite",
-        "space"
+        "satellite"
       ]
     }
   ],
@@ -138,7 +133,7 @@
   "target_companies": [],
   "results_per_query": 30,
   "hours_old": 672,
-  "min_keywords": 3,
+  "min_keywords": 4,
   "desired_score": 80,
   "site_title": "Control Theory Jobs NL",
   "country": "Netherlands"
