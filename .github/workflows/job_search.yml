@@ -63,7 +63,7 @@ jobs:
           cp $GITHUB_WORKSPACE/jobs.db jobs.db 2>/dev/null || true
           git add jobs.db
           git commit -m "Update jobs.db — run ${{ github.run_id }}" || echo "No changes to commit"
-          git push origin data-branch
+          git push origin data-branch --force
           # Return to main so subsequent steps work correctly
           git checkout ${{ github.ref_name }} 2>/dev/null || git checkout main
 
