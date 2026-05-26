@@ -10,6 +10,7 @@ on:
     paths-ignore:
       - 'applied.json'     # browser writes — must not re-trigger the workflow
       - 'discarded.json'   # browser writes — must not re-trigger the workflow
+      - 'maybe.json'       # browser writes — must not re-trigger the workflow
 
 permissions:
   contents: write
@@ -51,6 +52,7 @@ jobs:
         run: |
           test -f applied.json || echo '[]' > applied.json
           test -f discarded.json || echo '[]' > discarded.json
+          test -f maybe.json || echo '[]' > maybe.json
           python job_searcher.py --site --save
 
       # Push the updated jobs.db back to the data branch so it survives
@@ -87,6 +89,7 @@ jobs:
           cp config.json    _site/config.json
           cp applied.json   _site/applied.json
           cp discarded.json _site/discarded.json
+          cp maybe.json     _site/maybe.json
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

@@ -289,7 +289,7 @@ def _compute_fit_score(text: str) -> tuple[float, list[str]]:
         hits = [kw for kw in group if kw in text]
         if hits:
             raw += weight * len(hits)   # multiply by count, not just binary
-            found.extend(hits[:3])  # cap per-group display to 3
+            found.extend(hits)  # all hits, highest-weight tiers first
     score = round(raw, 1)
     return score, found
 
@@ -2239,16 +2239,29 @@ if (hasData) {{
 # ─────────────────────────────────────────────────────────────────
 
 def _format_date(row) -> str:
-    """Format date_posted safely."""
-    try:
-        col = row.get("date_posted") or row.get("date") or ""
-        if pd.isna(col) or col == "":
-            return "Date unknown"
-        if hasattr(col, "strftime"):
-            return col.strftime("%d %b %Y")
-        return str(col)[:10]
-    except Exception:
-        return "Date unknown"
+    """Format date_posted safely, falling back to first_seen scrape date."""
+    def _parse(col) -> str | None:
+        try:
+            if col is None or col == "" or (isinstance(col, float) and pd.isna(col)):
+                return None
+            if hasattr(col, "strftime"):
+                return col.strftime("%d %b %Y")
+            s = str(col).strip()[:10]
+            return s if s else None
+        except Exception:
+            return None
+
+    # 1. Try date_posted (when the company posted the job)
+    result = _parse(row.get("date_posted") or row.get("date"))
+    if result:
+        return result
+
+    # 2. Fall back to first_seen (when we first scraped it) — mark as approximate
+    fallback = _parse(row.get("first_seen") or row.get("run_date"))
+    if fallback:
+        return f"~{fallback}"
+
+    return "Date unknown"
 
 
 def _score_bar(score: float, width: int = 10) -> str:
@@ -2410,6 +2423,15 @@ def generate_site(df: pd.DataFrame):
         except Exception:
             pass
 
+    maybe_ids: set[str] = set()
+    maybe_json_path = os.path.join(OUTPUT_DIR, "maybe.json")
+    if os.path.exists(maybe_json_path):
+        try:
+            with open(maybe_json_path, "r", encoding="utf-8") as _f:
+                maybe_ids = set(json.load(_f))
+        except Exception:
+            pass
+
     total    = len(display_df)
     target_n = int(display_df["is_target"].sum()) if not display_df.empty else 0
     high_fit = int((display_df["fit_score"] >= 0.4 * SCORE_REF).sum()) if not display_df.empty else 0
@@ -2466,7 +2488,7 @@ def generate_site(df: pd.DataFrame):
                 # Fallback: recompute from title text
                 _title_text = str(row.get("title", "")).lower()
                 _, kws = _compute_fit_score(_title_text)
-            keywords = ", ".join(kws[:6]) if kws else ""
+            keywords = ", ".join(kws[:10]) if kws else ""
 
             desc_text = str(row.get("description", "") or "").strip()
             desc_display = (desc_text[:200] + "...") if len(desc_text) > 200 else desc_text
@@ -2519,6 +2541,7 @@ def generate_site(df: pd.DataFrame):
             # Card classes and inline style
             is_applied_card   = jid in applied_ids
             is_discarded_card = jid in discarded_ids
+            is_maybe_card     = jid in maybe_ids
             card_classes = "card"
             if is_target:
                 card_classes += " target-card"
@@ -2528,12 +2551,15 @@ def generate_site(df: pd.DataFrame):
                 card_classes += " applied-card"
             if is_discarded_card:
                 card_classes += " discarded-card"
-            if is_applied_card or is_discarded_card:
+            if is_maybe_card:
+                card_classes += " maybe-card"
+            if is_applied_card or is_discarded_card or is_maybe_card:
                 card_style = ' style="display:none"'
             else:
                 card_style = ""
 
             discard_btn_cls = 'discard-btn discarded' if is_discarded_card else 'discard-btn'
+            maybe_btn_cls   = 'maybe-btn maybe' if is_maybe_card else 'maybe-btn'
 
             cards_html += f"""
 <div class="{card_classes}"{card_style} data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}" data-jobid="{jid}">
@@ -2557,6 +2583,7 @@ def generate_site(df: pd.DataFrame):
     <a class="apply-btn" href="{link}" target="_blank" rel="noopener">View posting</a>
     <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="{jid}">&#10003; Applied</button>
     <button class="{discard_btn_cls}" onclick="toggleDiscardCard(this)" data-jobid="{jid}">&#128465; Discard</button>
+    <button class="{maybe_btn_cls}" onclick="toggleMaybeCard(this)" data-jobid="{jid}">? Maybe</button>
   </div>
 </div>"""
 
@@ -2657,6 +2684,10 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 .discard-btn:hover {{ background:#e74c3c; color:white; }}
 .discard-btn.discarded {{ background:#e74c3c; color:white; }}
 .discarded-card {{ opacity:0.5; }}
+.maybe-btn {{ padding:5px 10px; border-radius:5px; border:1px solid #f39c12; background:white; color:#f39c12; font-size:12px; font-weight:600; cursor:pointer; transition:background 0.15s,color 0.15s; }}
+.maybe-btn:hover {{ background:#f39c12; color:white; }}
+.maybe-btn.maybe {{ background:#f39c12; color:white; }}
+.maybe-card {{ opacity:0.6; }}
 
 .top-match-banner {{
   background: #fde8e8; border-bottom: 2px solid #e74c3c;
@@ -2776,6 +2807,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   const DESIRED_SCORE = {DESIRED_SCORE};
   const SERVER_APPLIED = new Set({json.dumps(list(applied_ids))});
   const SERVER_DISCARDED = new Set({json.dumps(list(discarded_ids))});
+  const SERVER_MAYBE = new Set({json.dumps(list(maybe_ids))});
   let activeSite   = 'all';
   let targetOnly   = false;
   let newOnly      = false;
@@ -2948,6 +2980,69 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
     saveDiscarded();
   }}
 
+  // ── Maybe / Possible jobs ─────────────────────────────────────────────
+  const MAYBE_FILE = 'maybe.json';
+  let maybeSet = new Set(SERVER_MAYBE);
+
+  async function loadMaybe() {{
+    try {{
+      const res = await fetch(MAYBE_FILE + '?_=' + Date.now());
+      if (res.ok) {{ const arr = await res.json(); arr.forEach(id => maybeSet.add(id)); }}
+    }} catch(e) {{}}
+    try {{
+      const local = JSON.parse(localStorage.getItem('jss_maybe') || '[]');
+      local.forEach(id => maybeSet.add(id));
+    }} catch(e) {{}}
+    initMaybeUI();
+  }}
+
+  function initMaybeUI() {{
+    document.querySelectorAll('[data-jobid]').forEach(card => {{
+      if (maybeSet.has(card.dataset.jobid)) {{
+        card.classList.add('maybe-card');
+        if (!window._showMaybe) card.style.display = 'none';
+        const btn = card.querySelector('.maybe-btn');
+        if (btn) {{ btn.classList.add('maybe'); btn.textContent = '↩ Undo Maybe'; }}
+      }}
+    }});
+  }}
+
+  async function saveMaybe() {{
+    const arr = Array.from(maybeSet);
+    localStorage.setItem('jss_maybe', JSON.stringify(arr));
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;
+    try {{
+      const apiUrl = `https://api.github.com/repos/${{user}}/${{repo}}/contents/${{MAYBE_FILE}}`;
+      let sha = null;
+      try {{ const r = await fetch(apiUrl,{{headers:{{Authorization:`Bearer ${{pat}}`}}}}); if(r.ok){{const d=await r.json();sha=d.sha;}} }} catch(e) {{}}
+      const body = {{message:'Update maybe.json', content:btoa(JSON.stringify(arr,null,2))}};
+      if (sha) body.sha = sha;
+      await fetch(apiUrl,{{method:'PUT',headers:{{Authorization:`Bearer ${{pat}}`,'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+    }} catch(e) {{ console.warn('Could not save maybe.json:', e); }}
+  }}
+
+  function toggleMaybeCard(btn) {{
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('[data-jobid]');
+    if (maybeSet.has(jid)) {{
+      maybeSet.delete(jid);
+      card.classList.remove('maybe-card');
+      card.style.display = '';
+      btn.classList.remove('maybe');
+      btn.textContent = '? Maybe';
+    }} else {{
+      maybeSet.add(jid);
+      card.classList.add('maybe-card');
+      card.style.display = 'none';
+      btn.classList.add('maybe');
+      btn.textContent = '↩ Undo Maybe';
+    }}
+    saveMaybe();
+  }}
+
   function applyFilters() {{
     const q = document.getElementById('searchBox').value.toLowerCase();
     const minScoreRaw = document.getElementById('minScoreBox').value;
@@ -2956,8 +3051,9 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
       const jid      = card.dataset.jobid || '';
       const isApp    = appliedSet.has(jid);
       const isDisc   = discardedSet.has(jid);
-      // Discarded cards are always hidden from the main board
-      if (isDisc) {{ card.style.display = 'none'; return; }}
+      const isMaybe  = maybeSet.has(jid);
+      // Discarded and maybe cards are always hidden from the main board
+      if (isDisc || isMaybe) {{ card.style.display = 'none'; return; }}
       // Applied cards obey the showApplied toggle independently of filters
       if (isApp) {{
         card.style.display = window._showApplied ? '' : 'none';
@@ -3019,6 +3115,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
   // Run on page load
   loadApplied();
   loadDiscarded();
+  loadMaybe();
 </script>
 </body>
 </html>"""
@@ -3113,7 +3210,7 @@ def generate_archive(score_ref: float = 0.0):
                     "url":         row["job_url"] or "#",
                     "site":        (row["site"] or "").lower(),
                     "score":       round(float(row["fit_score"] or 0), 1),
-                    "keywords":    kws[:6],
+                    "keywords":    kws[:10],
                     "is_target":   bool(row["is_target"]),
                     "date_posted": row["date_posted"] or "",
                     "first_seen":  row["first_seen"] or "",
@@ -3143,6 +3240,16 @@ def generate_archive(score_ref: float = 0.0):
         except Exception:
             pass
 
+    # Read maybe.json so archive page can pre-populate maybe section
+    archive_maybe: list[str] = []
+    maybe_json_path = os.path.join(OUTPUT_DIR, "maybe.json")
+    if os.path.exists(maybe_json_path):
+        try:
+            with open(maybe_json_path, "r", encoding="utf-8") as _f:
+                archive_maybe = json.load(_f)
+        except Exception:
+            pass
+
     archive_data_json = json.dumps(
         {
             "jobs": all_jobs,
@@ -3150,6 +3257,7 @@ def generate_archive(score_ref: float = 0.0):
             "desired_score": DESIRED_SCORE,
             "applied_ids": archive_applied,
             "discarded_ids": archive_discarded,
+            "maybe_ids": archive_maybe,
         },
         ensure_ascii=False,
     )
@@ -3307,6 +3415,13 @@ footer {{
   </div>
 </div>
 
+<div id="maybeSection">
+  <div class="section-header">Maybe / Possible (<span id="maybeSectionCount">0</span>)</div>
+  <div class="grid" id="maybeGrid">
+    <div class="empty-state" id="maybeEmpty">No maybe jobs yet. Mark jobs as Maybe on the Live Job Board.</div>
+  </div>
+</div>
+
 <div id="expiredSection">
   <div class="section-header">Expired Jobs (<span id="expiredSectionCount">0</span>)</div>
   <div class="grid" id="expiredGrid">
@@ -3344,6 +3459,13 @@ try {{
   localDisc.forEach(id => discardedSet.add(id));
 }} catch(e) {{}}
 
+// Seed maybeSet from server-embedded maybe_ids merged with localStorage
+let maybeSet = new Set(ARCHIVE_DATA.maybe_ids || []);
+try {{
+  const localMaybe = JSON.parse(localStorage.getItem('jss_maybe') || '[]');
+  localMaybe.forEach(id => maybeSet.add(id));
+}} catch(e) {{}}
+
 function getApplied() {{
   return Array.from(appliedSet);
 }}
@@ -3355,6 +3477,29 @@ function saveApplied(arr) {{
 
 function saveDiscarded() {{
   localStorage.setItem('jss_discarded', JSON.stringify(Array.from(discardedSet)));
+}}
+
+function saveMaybe() {{
+  const arr = Array.from(maybeSet);
+  localStorage.setItem('jss_maybe', JSON.stringify(arr));
+  const pat  = localStorage.getItem('jss_gh_pat');
+  const user = localStorage.getItem('jss_gh_user');
+  const repo = localStorage.getItem('jss_gh_repo');
+  if (!pat || !user || !repo) return;
+  const MAYBE_FILE = 'maybe.json';
+  try {{
+    const apiUrl = `https://api.github.com/repos/${{user}}/${{repo}}/contents/${{MAYBE_FILE}}`;
+    let sha = null;
+    fetch(apiUrl,{{headers:{{Authorization:`Bearer ${{pat}}`}}}})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {{
+        if (d && d.sha) sha = d.sha;
+        const body = {{message:'Update maybe.json', content:btoa(JSON.stringify(arr,null,2))}};
+        if (sha) body.sha = sha;
+        return fetch(apiUrl,{{method:'PUT',headers:{{Authorization:`Bearer ${{pat}}`,'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+      }})
+      .catch(e => console.warn('Could not save maybe.json:', e));
+  }} catch(e) {{ console.warn('Could not save maybe.json:', e); }}
 }}
 
 function scoreClass(score, ref) {{
@@ -3443,6 +3588,44 @@ function buildDiscardedCard(job) {{
 </div>`;
 }}
 
+function buildMaybeCard(job) {{
+  const ref      = ARCHIVE_DATA.score_ref || 1;
+  const desired  = ARCHIVE_DATA.desired_score || 0;
+  const sc       = job.score;
+  const cls      = scoreClass(sc, ref);
+  const barPct   = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws      = (job.keywords || []).join(', ');
+  const dateLbl  = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge    = job.site ? `<span class="badge badge-${{job.site}}">${{job.site.toUpperCase()}}</span>` : '';
+  const targetBadge  = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge  = `<span class="badge" style="background:#fef3cd;color:#92400e;font-weight:700;">? Maybe</span>`;
+  const cardCls      = job.is_target ? 'card target-card' : 'card';
+  const descHtml3    = job.description ? `<div class="job-desc">${{job.description}}</div>` : '';
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  <div class="card-header">
+    <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
+    <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
+  </div>
+  <div class="card-meta">
+    <span>${{job.company}}</span>
+    <span>${{job.location}}</span>
+    <span>${{dateLbl}}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${{cls}}">${{sc}}</span>
+    <div class="score-bar"><div class="bar-fill ${{cls}}" style="width:${{barPct}}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${{kws || '—'}}</div>
+  ${{descHtml3}}
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${{job.url}}" target="_blank" rel="noopener">View posting</a>
+    <button class="restore-btn" onclick="restoreMaybe('${{job.id}}', this)" style="background:#f39c12;">&#8617; Restore</button>
+  </div>
+</div>`;
+}}
+
 function undoApplied(jid, btn) {{
   appliedSet.delete(jid);
   saveApplied(Array.from(appliedSet));
@@ -3477,18 +3660,41 @@ function restoreDiscarded(jid, btn) {{
   updateCounts();
 }}
 
+function restoreMaybe(jid, btn) {{
+  maybeSet.delete(jid);
+  saveMaybe();
+  // Remove card from maybe section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired) {{
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }}
+  updateCounts();
+}}
+
 function updateCounts() {{
   const appliedGrid    = document.getElementById('appliedGrid');
+  const maybeGrid      = document.getElementById('maybeGrid');
   const expiredGrid    = document.getElementById('expiredGrid');
   const discardedGrid  = document.getElementById('discardedGrid');
   const appliedCards   = appliedGrid.querySelectorAll('[data-jobid]').length;
+  const maybeCards     = maybeGrid.querySelectorAll('[data-jobid]').length;
   const expiredCards   = expiredGrid.querySelectorAll('[data-jobid]').length;
   const discardedCards = discardedGrid.querySelectorAll('[data-jobid]').length;
   document.getElementById('appliedSectionCount').textContent = appliedCards;
+  document.getElementById('maybeSectionCount').textContent = maybeCards;
   document.getElementById('expiredSectionCount').textContent = expiredCards;
   document.getElementById('discardedSectionCount').textContent = discardedCards;
   if (appliedCards === 0 && !document.getElementById('appliedEmpty')) {{
     appliedGrid.innerHTML = '<div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>';
+  }}
+  if (maybeCards === 0 && !document.getElementById('maybeEmpty')) {{
+    maybeGrid.innerHTML = '<div class="empty-state" id="maybeEmpty">No maybe jobs yet. Mark jobs as Maybe on the Live Job Board.</div>';
   }}
   if (expiredCards === 0 && !document.getElementById('expiredEmpty')) {{
     expiredGrid.innerHTML = '<div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>';
@@ -3502,18 +3708,23 @@ function updateCounts() {{
 (function init() {{
   const jobs          = ARCHIVE_DATA.jobs || [];
   const appliedGrid   = document.getElementById('appliedGrid');
+  const maybeGrid     = document.getElementById('maybeGrid');
   const expiredGrid   = document.getElementById('expiredGrid');
   const discardedGrid = document.getElementById('discardedGrid');
 
   let appliedHtml   = '';
+  let maybeHtml     = '';
   let expiredHtml   = '';
   let discardedHtml = '';
 
   for (const job of jobs) {{
-    const isApp  = appliedSet.has(job.id);
-    const isDisc = discardedSet.has(job.id);
+    const isApp   = appliedSet.has(job.id);
+    const isMaybe = maybeSet.has(job.id);
+    const isDisc  = discardedSet.has(job.id);
     if (isApp) {{
       appliedHtml += buildCard(job, true);
+    }} else if (isMaybe) {{
+      maybeHtml += buildMaybeCard(job);
     }} else if (isDisc) {{
       discardedHtml += buildDiscardedCard(job);
     }} else if (job.is_expired) {{
@@ -3522,6 +3733,7 @@ function updateCounts() {{
   }}
 
   if (appliedHtml)   {{ appliedGrid.innerHTML   = appliedHtml;   }}
+  if (maybeHtml)     {{ maybeGrid.innerHTML     = maybeHtml;     }}
   if (expiredHtml)   {{ expiredGrid.innerHTML   = expiredHtml;   }}
   if (discardedHtml) {{ discardedGrid.innerHTML = discardedHtml; }}
 
