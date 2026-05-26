@@ -2403,6 +2403,15 @@ def generate_site(df: pd.DataFrame):
         except Exception:
             pass
 
+    discarded_ids: set[str] = set()
+    discarded_json_path = os.path.join(OUTPUT_DIR, "discarded.json")
+    if os.path.exists(discarded_json_path):
+        try:
+            with open(discarded_json_path, "r", encoding="utf-8") as _f:
+                discarded_ids = set(json.load(_f))
+        except Exception:
+            pass
+
     total    = len(display_df)
     target_n = int(display_df["is_target"].sum()) if not display_df.empty else 0
     high_fit = int((display_df["fit_score"] >= 0.4 * SCORE_REF).sum()) if not display_df.empty else 0
@@ -2448,7 +2457,12 @@ def generate_site(df: pd.DataFrame):
             site_name  = str(row.get("site",     "")).lower()
             link       = str(row.get("job_url",  "#"))
             date       = _format_date(row)
-            keywords   = ", ".join(row.get("matched_keywords", [])[:6])
+            kws = list(row.get("matched_keywords") or [])
+            if not kws:
+                # Old DB rows have "[]" — try to recompute from title alone
+                title_text = title.lower()
+                _, kws = _compute_fit_score(title_text)
+            keywords   = ", ".join(kws[:6])
             summary    = str(row.get("description", ""))[:280].strip()
             if summary:
                 summary += "..."
@@ -2498,7 +2512,8 @@ def generate_site(df: pd.DataFrame):
             desired_badge  = f'<span class="badge badge-desired">&#9733; Match</span>' if is_desired else ""
 
             # Card classes and inline style
-            is_applied_card = jid in applied_ids
+            is_applied_card   = jid in applied_ids
+            is_discarded_card = jid in discarded_ids
             card_classes = "card"
             if is_target:
                 card_classes += " target-card"
@@ -2506,7 +2521,14 @@ def generate_site(df: pd.DataFrame):
                 card_classes += " returning-card"
             if is_applied_card:
                 card_classes += " applied-card"
-            card_style = ' style="display:none"' if is_applied_card else ""
+            if is_discarded_card:
+                card_classes += " discarded-card"
+            if is_applied_card or is_discarded_card:
+                card_style = ' style="display:none"'
+            else:
+                card_style = ""
+
+            discard_btn_cls = 'discard-btn discarded' if is_discarded_card else 'discard-btn'
 
             cards_html += f"""
 <div class="{card_classes}"{card_style} data-score="{score}" data-site="{site_name}" data-target="{str(is_target).lower()}" data-new="{str(is_new).lower()}" data-desired="{str(is_desired).lower()}" data-jobid="{jid}">
@@ -2529,6 +2551,7 @@ def generate_site(df: pd.DataFrame):
   <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
     <a class="apply-btn" href="{link}" target="_blank" rel="noopener">View posting</a>
     <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="{jid}">&#10003; Applied</button>
+    <button class="{discard_btn_cls}" onclick="toggleDiscardCard(this)" data-jobid="{jid}">&#128465; Discard</button>
   </div>
 </div>"""
 
@@ -2625,6 +2648,10 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
 }}
 .apply-toggle-btn:hover {{ background: #cbd5e1; }}
 .apply-toggle-btn.applied {{ background: #166534; color: white; }}
+.discard-btn {{ padding:5px 10px; border-radius:5px; border:1px solid #e74c3c; background:white; color:#e74c3c; font-size:12px; font-weight:600; cursor:pointer; transition:background 0.15s, color 0.15s; }}
+.discard-btn:hover {{ background:#e74c3c; color:white; }}
+.discard-btn.discarded {{ background:#e74c3c; color:white; }}
+.discarded-card {{ opacity:0.5; }}
 
 .top-match-banner {{
   background: #fde8e8; border-bottom: 2px solid #e74c3c;
@@ -2743,6 +2770,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 <script>
   const DESIRED_SCORE = {DESIRED_SCORE};
   const SERVER_APPLIED = new Set({json.dumps(list(applied_ids))});
+  const SERVER_DISCARDED = new Set({json.dumps(list(discarded_ids))});
   let activeSite   = 'all';
   let targetOnly   = false;
   let newOnly      = false;
@@ -2852,6 +2880,69 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
     if (link) link.textContent = (window._showApplied ? 'Hide' : 'Show') + ' applied (' + document.getElementById('appliedCount').textContent + ')';
   }}
 
+  // ── Discarded jobs ────────────────────────────────────────────────
+  const DISCARD_FILE = 'discarded.json';
+  let discardedSet = new Set(SERVER_DISCARDED);
+
+  async function loadDiscarded() {{
+    try {{
+      const res = await fetch(DISCARD_FILE + '?_=' + Date.now());
+      if (res.ok) {{ const arr = await res.json(); arr.forEach(id => discardedSet.add(id)); }}
+    }} catch(e) {{}}
+    try {{
+      const local = JSON.parse(localStorage.getItem('jss_discarded') || '[]');
+      local.forEach(id => discardedSet.add(id));
+    }} catch(e) {{}}
+    initDiscardedUI();
+  }}
+
+  function initDiscardedUI() {{
+    document.querySelectorAll('[data-jobid]').forEach(card => {{
+      if (discardedSet.has(card.dataset.jobid)) {{
+        card.classList.add('discarded-card');
+        card.style.display = 'none';
+        const btn = card.querySelector('.discard-btn');
+        if (btn) {{ btn.classList.add('discarded'); btn.title = 'Restore'; }}
+      }}
+    }});
+  }}
+
+  async function saveDiscarded() {{
+    const arr = Array.from(discardedSet);
+    localStorage.setItem('jss_discarded', JSON.stringify(arr));
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;
+    try {{
+      const apiUrl = `https://api.github.com/repos/${{user}}/${{repo}}/contents/${{DISCARD_FILE}}`;
+      let sha = null;
+      try {{ const r = await fetch(apiUrl, {{headers:{{Authorization:`Bearer ${{pat}}`}}}}); if(r.ok){{const d=await r.json();sha=d.sha;}} }} catch(e) {{}}
+      const body = {{message:'Update discarded.json', content:btoa(JSON.stringify(arr,null,2))}};
+      if (sha) body.sha = sha;
+      await fetch(apiUrl, {{method:'PUT', headers:{{Authorization:`Bearer ${{pat}}`,'Content-Type':'application/json'}}, body:JSON.stringify(body)}});
+    }} catch(e) {{ console.warn('Could not save discarded.json:', e); }}
+  }}
+
+  function toggleDiscardCard(btn) {{
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('[data-jobid]');
+    if (discardedSet.has(jid)) {{
+      discardedSet.delete(jid);
+      card.classList.remove('discarded-card');
+      card.style.display = '';
+      btn.classList.remove('discarded');
+      btn.title = '';
+    }} else {{
+      discardedSet.add(jid);
+      card.classList.add('discarded-card');
+      card.style.display = 'none';
+      btn.classList.add('discarded');
+      btn.title = 'Restore';
+    }}
+    saveDiscarded();
+  }}
+
   function applyFilters() {{
     const q = document.getElementById('searchBox').value.toLowerCase();
     const minScoreRaw = document.getElementById('minScoreBox').value;
@@ -2859,6 +2950,9 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
     document.querySelectorAll('.card').forEach(card => {{
       const jid      = card.dataset.jobid || '';
       const isApp    = appliedSet.has(jid);
+      const isDisc   = discardedSet.has(jid);
+      // Discarded cards are always hidden from the main board
+      if (isDisc) {{ card.style.display = 'none'; return; }}
       // Applied cards obey the showApplied toggle independently of filters
       if (isApp) {{
         card.style.display = window._showApplied ? '' : 'none';
@@ -2919,6 +3013,7 @@ footer {{ text-align: center; padding: 24px; font-size: 11px; color: #bbb; }}
 
   // Run on page load
   loadApplied();
+  loadDiscarded();
 </script>
 </body>
 </html>"""
@@ -3025,12 +3120,23 @@ def generate_archive(score_ref: float = 0.0):
         except Exception:
             pass
 
+    # Read discarded.json so archive page can pre-populate discarded section
+    archive_discarded: list[str] = []
+    discarded_json_path = os.path.join(OUTPUT_DIR, "discarded.json")
+    if os.path.exists(discarded_json_path):
+        try:
+            with open(discarded_json_path, "r", encoding="utf-8") as _f:
+                archive_discarded = json.load(_f)
+        except Exception:
+            pass
+
     archive_data_json = json.dumps(
         {
             "jobs": all_jobs,
             "score_ref": score_ref,
             "desired_score": DESIRED_SCORE,
             "applied_ids": archive_applied,
+            "discarded_ids": archive_discarded,
         },
         ensure_ascii=False,
     )
@@ -3144,6 +3250,14 @@ header p  {{ font-size: 12px; opacity: 0.65; margin-top: 5px; }}
   text-decoration: none; font-weight: 500; align-self: flex-start;
 }}
 .view-btn:hover {{ background: #2e6da4; }}
+.restore-btn {{
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #e74c3c;
+  color: white; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}}
+.restore-btn:hover {{ background: #c0392b; }}
+.badge-discarded {{ background: #fde8e8; color: #c0392b; font-weight: 700; }}
 .empty-state {{
   padding: 40px 32px; text-align: center; color: #888; font-size: 14px;
   font-style: italic;
@@ -3186,6 +3300,13 @@ footer {{
   </div>
 </div>
 
+<div id="discardedSection">
+  <div class="section-header">Discarded Jobs (<span id="discardedSectionCount">0</span>)</div>
+  <div class="grid" id="discardedGrid">
+    <div class="empty-state" id="discardedEmpty">No discarded jobs yet.</div>
+  </div>
+</div>
+
 <footer>
   Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
   Applied state is stored in your browser&apos;s localStorage &nbsp;&middot;&nbsp;
@@ -3203,6 +3324,13 @@ try {{
   local.forEach(id => appliedSet.add(id));
 }} catch(e) {{}}
 
+// Seed discardedSet from server-embedded discarded_ids merged with localStorage
+let discardedSet = new Set(ARCHIVE_DATA.discarded_ids || []);
+try {{
+  const localDisc = JSON.parse(localStorage.getItem('jss_discarded') || '[]');
+  localDisc.forEach(id => discardedSet.add(id));
+}} catch(e) {{}}
+
 function getApplied() {{
   return Array.from(appliedSet);
 }}
@@ -3210,6 +3338,10 @@ function getApplied() {{
 function saveApplied(arr) {{
   appliedSet = new Set(arr);
   localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}}
+
+function saveDiscarded() {{
+  localStorage.setItem('jss_discarded', JSON.stringify(Array.from(discardedSet)));
 }}
 
 function scoreClass(score, ref) {{
@@ -3258,13 +3390,66 @@ function buildCard(job, isApplied) {{
 </div>`;
 }}
 
+function buildDiscardedCard(job) {{
+  const ref      = ARCHIVE_DATA.score_ref || 1;
+  const desired  = ARCHIVE_DATA.desired_score || 0;
+  const sc       = job.score;
+  const cls      = scoreClass(sc, ref);
+  const barPct   = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws      = (job.keywords || []).join(', ');
+  const dateLbl  = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge    = job.site ? `<span class="badge badge-${{job.site}}">${{job.site.toUpperCase()}}</span>` : '';
+  const targetBadge  = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge  = `<span class="badge badge-discarded">Discarded</span>`;
+  const cardCls      = job.is_target ? 'card target-card' : 'card';
+  return `<div class="${{cardCls}}" data-jobid="${{job.id}}">
+  <div class="card-header">
+    <h3><a href="${{job.url}}" target="_blank" rel="noopener">${{job.title}}</a></h3>
+    <div class="badges">${{desiredBadge}}${{targetBadge}}${{statusBadge}}${{siteBadge}}</div>
+  </div>
+  <div class="card-meta">
+    <span>${{job.company}}</span>
+    <span>${{job.location}}</span>
+    <span>${{dateLbl}}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${{cls}}">${{sc}}</span>
+    <div class="score-bar"><div class="bar-fill ${{cls}}" style="width:${{barPct}}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${{kws || '—'}}</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${{job.url}}" target="_blank" rel="noopener">View posting</a>
+    <button class="restore-btn" onclick="restoreDiscarded('${{job.id}}', this)">&#8617; Restore</button>
+  </div>
+</div>`;
+}}
+
 function undoApplied(jid, btn) {{
   appliedSet.delete(jid);
   saveApplied(Array.from(appliedSet));
   // Remove card from applied section
   const card = btn.closest('[data-jobid]');
   if (card) card.remove();
-  // Move to expired section if job is expired
+  // Move to expired section if job is expired and not discarded
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired && !discardedSet.has(jid)) {{
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }}
+  updateCounts();
+}}
+
+function restoreDiscarded(jid, btn) {{
+  discardedSet.delete(jid);
+  saveDiscarded();
+  // Remove card from discarded section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section
   const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
   if (job && job.is_expired) {{
     const expiredGrid = document.getElementById('expiredGrid');
@@ -3276,44 +3461,52 @@ function undoApplied(jid, btn) {{
 }}
 
 function updateCounts() {{
-  const appliedGrid  = document.getElementById('appliedGrid');
-  const expiredGrid  = document.getElementById('expiredGrid');
-  const appliedCards = appliedGrid.querySelectorAll('[data-jobid]').length;
-  const expiredCards = expiredGrid.querySelectorAll('[data-jobid]').length;
+  const appliedGrid    = document.getElementById('appliedGrid');
+  const expiredGrid    = document.getElementById('expiredGrid');
+  const discardedGrid  = document.getElementById('discardedGrid');
+  const appliedCards   = appliedGrid.querySelectorAll('[data-jobid]').length;
+  const expiredCards   = expiredGrid.querySelectorAll('[data-jobid]').length;
+  const discardedCards = discardedGrid.querySelectorAll('[data-jobid]').length;
   document.getElementById('appliedSectionCount').textContent = appliedCards;
   document.getElementById('expiredSectionCount').textContent = expiredCards;
+  document.getElementById('discardedSectionCount').textContent = discardedCards;
   if (appliedCards === 0 && !document.getElementById('appliedEmpty')) {{
     appliedGrid.innerHTML = '<div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>';
   }}
   if (expiredCards === 0 && !document.getElementById('expiredEmpty')) {{
     expiredGrid.innerHTML = '<div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>';
   }}
+  if (discardedCards === 0 && !document.getElementById('discardedEmpty')) {{
+    discardedGrid.innerHTML = '<div class="empty-state" id="discardedEmpty">No discarded jobs yet.</div>';
+  }}
 }}
 
 // ── Boot ─────────────────────────────────────────────────────────
 (function init() {{
-  const jobs        = ARCHIVE_DATA.jobs || [];
-  const appliedGrid = document.getElementById('appliedGrid');
-  const expiredGrid = document.getElementById('expiredGrid');
+  const jobs          = ARCHIVE_DATA.jobs || [];
+  const appliedGrid   = document.getElementById('appliedGrid');
+  const expiredGrid   = document.getElementById('expiredGrid');
+  const discardedGrid = document.getElementById('discardedGrid');
 
-  let appliedHtml = '';
-  let expiredHtml = '';
+  let appliedHtml   = '';
+  let expiredHtml   = '';
+  let discardedHtml = '';
 
   for (const job of jobs) {{
-    const isApp = appliedSet.has(job.id);
+    const isApp  = appliedSet.has(job.id);
+    const isDisc = discardedSet.has(job.id);
     if (isApp) {{
       appliedHtml += buildCard(job, true);
+    }} else if (isDisc) {{
+      discardedHtml += buildDiscardedCard(job);
     }} else if (job.is_expired) {{
       expiredHtml += buildCard(job, false);
     }}
   }}
 
-  if (appliedHtml) {{
-    appliedGrid.innerHTML = appliedHtml;
-  }}
-  if (expiredHtml) {{
-    expiredGrid.innerHTML = expiredHtml;
-  }}
+  if (appliedHtml)   {{ appliedGrid.innerHTML   = appliedHtml;   }}
+  if (expiredHtml)   {{ expiredGrid.innerHTML   = expiredHtml;   }}
+  if (discardedHtml) {{ discardedGrid.innerHTML = discardedHtml; }}
 
   updateCounts();
 }})();
