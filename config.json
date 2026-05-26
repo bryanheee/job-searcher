@@ -7,7 +7,8 @@
     "robotics control engineer Netherlands",
     "mechatronics engineer control Netherlands",
     "guidance navigation control engineer",
-    "junior control engineer simulink matlab Netherlands"
+    "junior control engineer simulink matlab Netherlands",
+    "regeltechniek ingenieur"
   ],
   "scored_keywords": [
     {
@@ -46,7 +47,23 @@
         "observer design",
         "feedback linearization",
         "stochastic control",
-        "control allocation"
+        "control allocation",
+        "regeltechniek",
+        "regelsystemen",
+        "geavanceerde regeltechniek",
+        "modelgebaseerde regeling",
+        "optimale regeling",
+        "robuuste regeling",
+        "voorspellende regeling",
+        "toestandsschatting",
+        "systeemidentificatie",
+        "niet-lineaire regeling",
+        "adaptieve regeling",
+        "terugkoppelregeling",
+        "kalmanfilter",
+        "standregeling",
+        "baanoptimalisatie",
+        "stabiliteitsanalyse"
       ]
     },
     {
@@ -70,7 +87,18 @@
         "model-in-the-loop",
         "software-in-the-loop",
         "controller",
-        "sensor fusion"
+        "sensor fusion",
+        "mechatronica",
+        "bewegingsbesturing",
+        "bewegingsregeling",
+        "servoregeling",
+        "embedded regeling",
+        "realtime regeling",
+        "luchtvaart",
+        "ruimtevaart",
+        "autonome systemen",
+        "precisiemechatronica",
+        "voertuigdynamica"
       ]
     },
     {
@@ -94,7 +122,18 @@
         "unmanned",
         "uav",
         "drone",
-        "satellite"
+        "satellite",
+        "regeling",
+        "besturing",
+        "aansturing",
+        "regelaar",
+        "navigatie",
+        "signaalverwerking",
+        "dynamica",
+        "modellering",
+        "simulatie",
+        "microcontroller",
+        "actuator"
       ]
     }
   ],
@@ -134,7 +173,7 @@
   "results_per_query": 30,
   "hours_old": 672,
   "min_keywords": 4,
-  "desired_score": 80,
+  "desired_score": 90,
   "site_title": "Control Theory Jobs NL",
   "country": "Netherlands"
 }
