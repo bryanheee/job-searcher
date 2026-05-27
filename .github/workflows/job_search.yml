@@ -2,7 +2,7 @@ name: Daily Control Systems Job Search
 
 on:
   schedule:
-    - cron: "0 7 * * *"   # 07:00 UTC = 09:00 Netherlands (CEST); adjust to 08:00 in winter
+    - cron: "0 2 * * *"   # 07:00 UTC = 09:00 Netherlands (CEST); adjust to 08:00 in winter
   workflow_dispatch:        # manual trigger from GitHub UI
   push:
     branches:
