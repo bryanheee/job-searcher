@@ -118,7 +118,6 @@
         "inertial",
         "signal processing",
         "frequency domain",
-        "bode",
         "nyquist",
         "unmanned",
         "uav",
@@ -145,7 +144,8 @@
     "automation engineer",
     "welding",
     "project engineer",
-    "electrical engineer"
+    "electrical engineer",
+    "postdoc"
   ],
   "blacklist_full": [
     "ladder logic",
