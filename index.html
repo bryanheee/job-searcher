@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Theory Jobs NL</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       background: #f0f2f5; color: #2c3e50; }
+
+header { background: #1a3a5c; color: white; padding: 22px 32px;
+          display: flex; justify-content: space-between; align-items: center;
+          flex-wrap: wrap; gap: 10px; }
+header h1 { font-size: 21px; font-weight: 600; }
+header p  { font-size: 12px; opacity: 0.65; margin-top: 5px; }
+.nav-link {
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 14px; border-radius: 6px; white-space: nowrap;
+}
+.nav-link:hover { background: rgba(255,255,255,0.15); }
+
+.stats {
+  background: white; border-bottom: 1px solid #e0e0e0;
+  padding: 12px 32px; font-size: 13px; color: #666;
+  display: flex; gap: 28px; align-items: center; flex-wrap: wrap;
+}
+.stats strong { color: #1a3a5c; font-size: 20px; }
+
+.controls {
+  padding: 14px 32px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  background: white; border-bottom: 1px solid #eee;
+}
+.controls input {
+  padding: 8px 14px; border: 1px solid #ccc; border-radius: 6px;
+  font-size: 13px; width: 260px; outline: none;
+}
+.controls input:focus { border-color: #1a3a5c; }
+.filter-btn {
+  padding: 7px 14px; border: 1px solid #ccc; border-radius: 6px;
+  background: white; cursor: pointer; font-size: 12px; font-weight: 500;
+}
+.filter-btn.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
+.sort-label { font-size: 12px; color: #888; margin-left: 8px; }
+
+.grid {
+  padding: 20px 32px 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: white; border-radius: 10px; padding: 18px 20px;
+  border: 1px solid #e8e8e8; transition: box-shadow 0.2s;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.card:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.09); }
+.target-card { border-left: 4px solid #f39c12; }
+
+.card-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 8px;
+}
+.card-header h3 { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.card-header h3 a { color: #1a3a5c; text-decoration: none; }
+.card-header h3 a:hover { text-decoration: underline; }
+.badges { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; align-items: flex-end; }
+
+.badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap; font-weight: 500;
+}
+.badge-target  { background: #fef3cd; color: #856404; }
+.badge-linkedin { background: #e8f4fd; color: #0a66c2; }
+.badge-indeed   { background: #e8f8f0; color: #2e7d32; }
+.badge-salary   { background: #f3e8ff; color: #6b21a8; }
+.badge-new  { background: #dbeafe; color: #1d4ed8; }
+.badge-seen { background: #dcfce7; color: #166534; }
+.badge-desired { background: #fde8e8; color: #c0392b; border: 1px solid #e74c3c; font-weight: 700; }
+.returning-card { background: #f0fff4 !important; border-left: 4px solid #28a745; }
+.target-card.returning-card { border-left: 4px solid #f39c12; }
+.applied-card { opacity: 0.5; border-left: 4px solid #adb5bd !important; }
+.applied-card h3 a { text-decoration: line-through; color: #888 !important; }
+.apply-toggle-btn {
+  display: inline-block; margin-top: 4px; margin-left: 6px;
+  padding: 5px 12px; background: #e2e8f0;
+  color: #334155; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}
+.apply-toggle-btn:hover { background: #cbd5e1; }
+.apply-toggle-btn.applied { background: #166534; color: white; }
+.discard-btn { padding:5px 10px; border-radius:5px; border:1px solid #e74c3c; background:white; color:#e74c3c; font-size:12px; font-weight:600; cursor:pointer; transition:background 0.15s, color 0.15s; }
+.discard-btn:hover { background:#e74c3c; color:white; }
+.discard-btn.discarded { background:#e74c3c; color:white; }
+.discarded-card { opacity:0.5; }
+.maybe-btn { padding:5px 10px; border-radius:5px; border:1px solid #f39c12; background:white; color:#f39c12; font-size:12px; font-weight:600; cursor:pointer; transition:background 0.15s,color 0.15s; }
+.maybe-btn:hover { background:#f39c12; color:white; }
+.maybe-btn.maybe { background:#f39c12; color:white; }
+.maybe-card { opacity:0.6; }
+
+.top-match-banner {
+  background: #fde8e8; border-bottom: 2px solid #e74c3c;
+  padding: 10px 32px; font-size: 13px; font-weight: 600; color: #c0392b;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.card-meta {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  font-size: 12px; color: #666;
+}
+
+.score-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+}
+.score-label { color: #888; flex-shrink: 0; }
+.score-num   { font-weight: 700; flex-shrink: 0; min-width: 36px; }
+.score-high  { color: #1e7e34; }
+.score-mid   { color: #856404; }
+.score-low   { color: #721c24; }
+
+.score-bar {
+  flex: 1; height: 6px; background: #e8e8e8;
+  border-radius: 4px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 0.3s;
+}
+.bar-fill.score-high { background: #28a745; }
+.bar-fill.score-mid  { background: #ffc107; }
+.bar-fill.score-low  { background: #dc3545; }
+
+.keywords { font-size: 11px; color: #999; }
+.job-desc { font-size: 12px; color: #666; margin-top: 6px; line-height: 1.5; }
+
+.apply-btn {
+  display: inline-block; margin-top: 4px;
+  padding: 7px 16px; background: #1a3a5c;
+  color: white; border-radius: 6px; font-size: 12px;
+  text-decoration: none; font-weight: 500; align-self: flex-start;
+}
+.apply-btn:hover { background: #2e6da4; }
+
+.empty { text-align: center; padding: 60px; color: #888; font-size: 15px; }
+.hidden { display: none !important; }
+
+footer { text-align: center; padding: 24px; font-size: 11px; color: #bbb; }
+
+@media (max-width: 600px) {
+  .grid { padding: 12px 16px; grid-template-columns: 1fr; }
+  header, .stats, .controls { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Control Theory Jobs NL</h1>
+    <p>Updated: 05 June 2026 at 16:13 UTC</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="nav-link" href="analytics.html">Analytics Dashboard</a>
+    <a class="nav-link" href="archive.html">Archive</a>
+    <a class="nav-link" href="settings.html">&#9881; Settings</a>
+  </div>
+</header>
+
+<div class="top-match-banner">&#128293; 1 new top match today (score &ge; 90)</div>
+
+<div class="stats">
+  <div><strong>25</strong> jobs found</div>
+  <div><strong>0</strong> target companies</div>
+  <div><strong>1</strong> high fit (score &ge; 114)</div>
+  <div style="font-size:12px;">Sources: Indeed NL + LinkedIn</div>
+  <div style="margin-left:auto;">
+    <a id="appliedToggle" href="#" onclick="toggleApplied(event)"
+       style="font-size:12px; color:#1a3a5c; font-weight:500; text-decoration:none;">
+      Show applied (<span id="appliedCount">0</span>)
+    </a>
+  </div>
+</div>
+
+<div id="patNotice" style="font-size:12px;color:#aaa;padding:2px 32px 6px;display:none;">
+  Applied jobs saved locally only — <a href="settings.html" style="color:#2e86ab;">connect GitHub in Settings</a> to sync to repo.
+</div>
+
+<div class="controls">
+  <input type="text" id="searchBox" placeholder="Filter by title, company, keyword..."
+         oninput="applyFilters()">
+  <input type="number" id="minScoreBox" placeholder="Min score" min="0" step="1"
+         title="Show only jobs with fit score >= this value"
+         oninput="applyFilters()"
+         style="width: 110px;">
+  <button class="filter-btn active" onclick="filterSite('all', this)">All</button>
+  <button class="filter-btn" onclick="filterSite('linkedin', this)">LinkedIn</button>
+  <button class="filter-btn" onclick="filterSite('indeed', this)">Indeed</button>
+  <button class="filter-btn" onclick="filterTarget(this)">Target only</button>
+  <button class="filter-btn" onclick="filterNew(this)">New only</button>
+  <span class="sort-label">Sort:</span>
+  <button class="filter-btn active" onclick="sortCards('score', this)">Fit score</button>
+  <button class="filter-btn" onclick="sortCards('date', this)">Newest</button>
+</div>
+
+<div class="grid" id="jobGrid">
+
+<div class="card" data-score="284.0" data-site="linkedin" data-target="false" data-new="true" data-desired="true" data-jobid="393243028351fb994a00a680bb2d3258">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4424371647" target="_blank" rel="noopener">Internship UAV Controls Engineer - Studentjob.nl</a></h3>
+    <div class="badges"><span class="badge badge-desired">&#9733; Match</span><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Jobster</span>
+    <span>Delft, South Holland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-high">284.0</span>
+    <div class="score-bar"><div class="bar-fill score-high" style="width:100.0%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ekf, state estimation, gnc, control theory, filtering, flight control, sensor fusion, pid, navigation, uav</div>
+  <div class="job-desc">****Opening****
+ WE CANNOT PROVIDE VISA SPONSORSHIP
+   
+
+  
+
+****Details****
+ Preferred starting date: ASAP
+   
+
+  
+
+ Weekly availability: full\-time (5 days/week)
+   
+
+  
+
+ Period: 6 months
+   
+
+  
+
+...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4424371647" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="393243028351fb994a00a680bb2d3258">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="393243028351fb994a00a680bb2d3258">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="393243028351fb994a00a680bb2d3258">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="74.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="b467597a2f6094a6a654feb3b712c5d3">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4423382814" target="_blank" rel="noopener">Simulation Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>SelectForce®</span>
+    <span>Eindhoven, North Brabant, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">74.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:26.1%"></div></div>
+  </div>
+  <div class="keywords">Keywords: filtering, matlab, simulink, precision, signal processing</div>
+  <div class="job-desc">**Simulation Engineer** 
+
+
+
+
+ Our client is a high\-tech company developing advanced systems at the cutting edge of innovation. They combine applied mathematics, sensor technology, and system integrat...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4423382814" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="b467597a2f6094a6a654feb3b712c5d3">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="b467597a2f6094a6a654feb3b712c5d3">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="b467597a2f6094a6a654feb3b712c5d3">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="54.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="cfebec849fae4b8973281695476c775c">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4423035687" target="_blank" rel="noopener">Production and Mechatronics Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Arc</span>
+    <span>Groningen, Groningen, Netherlands</span>
+    <span>2026-06-03</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">54.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:19.0%"></div></div>
+  </div>
+  <div class="keywords">Keywords: motion control, servo, mechatronic, mechatronics, pid, precision, actuator</div>
+  <div class="job-desc">**Arc** 
+
+
+
+
+
+ Arc is a rapidly growing luxury tech brand, known for designing the world's most minimalistic phone case, the Arc Pulse.
+ 
+
+
+
+
+
+ We are inventors, makers, and dreamers from across the w...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4423035687" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="cfebec849fae4b8973281695476c775c">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="cfebec849fae4b8973281695476c775c">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="cfebec849fae4b8973281695476c775c">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="52.0" data-site="indeed" data-target="false" data-new="true" data-desired="false" data-jobid="2367900d177084999f60330a80ad274f">
+  <div class="card-header">
+    <h3><a href="https://nl.indeed.com/viewjob?jk=61ef6eefea7a37d8" target="_blank" rel="noopener">Inbedrijfsteller Meet- & Regeltechniek</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-indeed">INDEED</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Equans</span>
+    <span>Beek, LI, NL</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">52.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:18.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: regeltechniek, regeling</div>
+  <div class="job-desc">### **Beschrijving**
+
+*Als inbedrijfsteller Meet\- \& Regeltechniek bij Equans breng je installaties tot leven. Jij zorgt ervoor dat gebouwbeheersystemen niet alleen draaien, maar ook doen waar ze voo...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://nl.indeed.com/viewjob?jk=61ef6eefea7a37d8" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="2367900d177084999f60330a80ad274f">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="2367900d177084999f60330a80ad274f">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="2367900d177084999f60330a80ad274f">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="52.0" data-site="indeed" data-target="false" data-new="true" data-desired="false" data-jobid="5e8b0e689aacff4b1e92b88627d8fa09">
+  <div class="card-header">
+    <h3><a href="https://nl.indeed.com/viewjob?jk=7a1b359c5a9997f6" target="_blank" rel="noopener">Service Engineer Validatie</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-indeed">INDEED</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Equans</span>
+    <span>Delft, ZH, NL</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">52.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:18.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: regeltechniek, regeling</div>
+  <div class="job-desc">### **Beschrijving**
+
+*Stel je voor: Jij staat bij toonaangevende bedrijven als ASML, TNO en Universitaire ziekenhuizen en controleert of cleanrooms, operatiekamers en incubatoren exact doen wat ze mo...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://nl.indeed.com/viewjob?jk=7a1b359c5a9997f6" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="5e8b0e689aacff4b1e92b88627d8fa09">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="5e8b0e689aacff4b1e92b88627d8fa09">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="5e8b0e689aacff4b1e92b88627d8fa09">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="52.0" data-site="indeed" data-target="false" data-new="true" data-desired="false" data-jobid="a34d9f0dde775ae0b3ac106cfc0749b4">
+  <div class="card-header">
+    <h3><a href="https://nl.indeed.com/viewjob?jk=53b5a8a1090ea974" target="_blank" rel="noopener">Werkvoorbereider Elektrotechniek & Instrumentatie</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-indeed">INDEED</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Equans</span>
+    <span>Hoek, ZE, NL</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">52.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:18.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: regeltechniek, regeling</div>
+  <div class="job-desc">### **Beschrijving**
+
+*Word de spil in uitdagende industriële projecten in Zeeland**Wil jij een cruciale rol spelen in het voorbereiden van elektrotechnische\- en instrumentatieprojecten binnen de ind...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://nl.indeed.com/viewjob?jk=53b5a8a1090ea974" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="a34d9f0dde775ae0b3ac106cfc0749b4">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="a34d9f0dde775ae0b3ac106cfc0749b4">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="a34d9f0dde775ae0b3ac106cfc0749b4">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="52.0" data-site="indeed" data-target="false" data-new="true" data-desired="false" data-jobid="b32b88580dd4333c598d8d8a862678a6">
+  <div class="card-header">
+    <h3><a href="https://nl.indeed.com/viewjob?jk=106de1cd18c6519f" target="_blank" rel="noopener">Software Engineer Meet- en Regeltechniek</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-indeed">INDEED</span></div>
+  </div>
+  <div class="card-meta">
+    <span>4Some technisch beheer</span>
+    <span>IJsselstein, UT, NL</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">52.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:18.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: regeltechniek, regeling</div>
+  <div class="job-desc">IJsselstein
+
+
+Fulltime
+
+
+€ 4392 \- € 5997
+
+
+**Welkom bij 4Some: dé specialist in het beheer en onderhoud van technische gebouwinstallaties. Als familiair bedrijf met korte lijntjes en een fijne werksf...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://nl.indeed.com/viewjob?jk=106de1cd18c6519f" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="b32b88580dd4333c598d8d8a862678a6">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="b32b88580dd4333c598d8d8a862678a6">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="b32b88580dd4333c598d8d8a862678a6">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="52.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="c17e14f6dc3989e43f5b76b9bc055897">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4424182193" target="_blank" rel="noopener">Simulation Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Uptec</span>
+    <span></span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">52.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:18.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: matlab, simulink, mechatronic, mechatronics, mechatronica, simulatie</div>
+  <div class="job-desc">**Functieomschrijving** 
+
+
+
+
+ Wil jij werken aan simulaties en modellen van complexe hightech systemen? Als Simulation Engineer ben je verantwoordelijk voor het ontwikkelen en analyseren van simulatie...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4424182193" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="c17e14f6dc3989e43f5b76b9bc055897">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="c17e14f6dc3989e43f5b76b9bc055897">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="c17e14f6dc3989e43f5b76b9bc055897">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="42.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="3039af42d83222a0279dd2e1003742f6">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4423526134" target="_blank" rel="noopener">Simulatie Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>ENTER BV</span>
+    <span>Alphen aan den Rijn, South Holland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">42.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:14.8%"></div></div>
+  </div>
+  <div class="keywords">Keywords: matlab, simulink, luchtvaart, ruimtevaart, simulatie</div>
+  <div class="job-desc">Gaat jouw hart sneller kloppen van marineschepen, onderzeeboten en luxe superjachten?
+ 
+
+
+
+ En ben jij op zoek naar een nieuwe uitdagende rol waarin jij jouw kwaliteiten kan laten zien? Dan ben jij de...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4423526134" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="3039af42d83222a0279dd2e1003742f6">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="3039af42d83222a0279dd2e1003742f6">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="3039af42d83222a0279dd2e1003742f6">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="40.0" data-site="indeed" data-target="false" data-new="true" data-desired="false" data-jobid="c76e2a332ff4faccba53ceb01172d6c1">
+  <div class="card-header">
+    <h3><a href="https://nl.indeed.com/viewjob?jk=f57522b04a5baada" target="_blank" rel="noopener">NPI Quality Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-indeed">INDEED</span></div>
+  </div>
+  <div class="card-meta">
+    <span>TMC</span>
+    <span>Eindhoven, NB, NL</span>
+    <span>2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">40.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:14.1%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronics, pid, optimization</div>
+  <div class="job-desc">Netherlands New Product Introduction 5 \- 10 years Eindhoven On\-site
+Do you get energized by solving complex quality challenges in the high\-tech industry? As a Quality Engineer within TMC NPI, you e...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://nl.indeed.com/viewjob?jk=f57522b04a5baada" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="c76e2a332ff4faccba53ceb01172d6c1">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="c76e2a332ff4faccba53ceb01172d6c1">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="c76e2a332ff4faccba53ceb01172d6c1">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="32.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="1464ae9448765e45cb3aa29859edd816">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4403632535" target="_blank" rel="noopener">Testing Engineer - Rollingstock</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>CAF (Construcciones y Auxiliar de Ferrocarriles)</span>
+    <span>Leidschendam, South Holland, Netherlands</span>
+    <span>2026-06-03</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">32.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:11.3%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronica, luchtvaart, besturing</div>
+  <div class="job-desc">Missie van de functie
+   
+
+  
+
+ CAF Group heeft een overeenkomst getekend met zowel NS als Qbuzz voor de levering van twee typen rollend materieel. Voordat de producten voor openbaar gebruik kunnen wo...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4403632535" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="1464ae9448765e45cb3aa29859edd816">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="1464ae9448765e45cb3aa29859edd816">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="1464ae9448765e45cb3aa29859edd816">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="30.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="9f09feb52c74becfa61879b6ee9bb73b">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4404416219" target="_blank" rel="noopener">SLAM Engineer - XR Labs Europe - Amsterdam Netherlands</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Qualcomm</span>
+    <span>Amsterdam, North Holland, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">30.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:10.6%"></div></div>
+  </div>
+  <div class="keywords">Keywords: sensor fusion, pid, optimization</div>
+  <div class="job-desc">**Company**
+ Qualcomm Technologies Netherlands B.V.
+   
+
+  
+
+**Job Area**
+ Engineering Group, Engineering Group \> Multimedia Systems
+   
+
+  
+
+**General Summary**
+ At
+ **Qualcomm** 
+**XR labs Europe**...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4404416219" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="9f09feb52c74becfa61879b6ee9bb73b">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="9f09feb52c74becfa61879b6ee9bb73b">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="9f09feb52c74becfa61879b6ee9bb73b">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="24.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="40b850c1d1d2b2ebe14862dc4caa4c71">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4404272730" target="_blank" rel="noopener">I&C Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>STILL</span>
+    <span>Hendrik-Ido-Ambacht, South Holland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">24.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:8.5%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronics, besturing, simulatie</div>
+  <div class="job-desc">Wij zijn op zoek naar een I\&C Engineer (Installation \& Commissioning Engineer) om ons groeiende team te versterken! De succesvolle kandidaat zal verantwoordelijk zijn voor de installatie en inbedrij...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4404272730" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="40b850c1d1d2b2ebe14862dc4caa4c71">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="40b850c1d1d2b2ebe14862dc4caa4c71">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="40b850c1d1d2b2ebe14862dc4caa4c71">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="22.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="83331b774968ea1af5cc6067a15b6e7d">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4398800717" target="_blank" rel="noopener">Electrical Design Engineer | Eplan | High-Tech & Defense Systems</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Akkodis</span>
+    <span>Hengelo, Overijssel, Netherlands</span>
+    <span>2026-06-03</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">22.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.7%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronics, high-tech</div>
+  <div class="job-desc">**Welcome to Akkodis** 
+
+
+
+
+ At \#Akkodis, we’re a diverse team of 50,000\+ engineers and digital experts, operating across 30 locations worldwide. From training teams to delivering projects, our Smar...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4398800717" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="83331b774968ea1af5cc6067a15b6e7d">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="83331b774968ea1af5cc6067a15b6e7d">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="83331b774968ea1af5cc6067a15b6e7d">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="22.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="a22c02e355f507cc09b1bc34a4ded7b9">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4337172424" target="_blank" rel="noopener">Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Ergolift B.V.</span>
+    <span>Staphorst, Overijssel, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">22.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.7%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronica, regeling</div>
+  <div class="job-desc">FunctieomschrijvingWil jij ontwerpen maken die je ook echt tot leven ziet komen? Bij Ergolift werk je aan gevelonderhoudsinstallaties die je vanaf het eerste idee uitwerkt tot een volledig getest eind...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4337172424" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="a22c02e355f507cc09b1bc34a4ded7b9">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="a22c02e355f507cc09b1bc34a4ded7b9">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="a22c02e355f507cc09b1bc34a4ded7b9">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="22.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="ed5af54d927c9f85233081fd10130274">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4424398764" target="_blank" rel="noopener">Mechatronica Engineer Robotica</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Evoke</span>
+    <span>Barneveld, Gelderland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">22.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.7%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronica, regeling</div>
+  <div class="job-desc">Als Mechatronica Engineer Robotica bouw en verbeter jij slimme robots en machines die de productie van industriële machines draaiend houden. Van programmeren tot testen en storingen oplossen, jij zorg...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4424398764" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="ed5af54d927c9f85233081fd10130274">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="ed5af54d927c9f85233081fd10130274">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="ed5af54d927c9f85233081fd10130274">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="22.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="f7cac64d1e408b886650dbfbbd683aa0">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4424397788" target="_blank" rel="noopener">Field Service Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Evoke</span>
+    <span>Heerlen, Limburg, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">22.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.7%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronica, regeling</div>
+  <div class="job-desc">Werk aan innovatieve mechatronische systemen en reis naar klanten over de hele wereld. Je combineert techniek, service en klantcontact in een afwisselende functie waarin geen dag hetzelfde is. Los com...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4424397788" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="f7cac64d1e408b886650dbfbbd683aa0">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="f7cac64d1e408b886650dbfbbd683aa0">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="f7cac64d1e408b886650dbfbbd683aa0">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="20.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="8a6e5d70dd760f02b4c635198bd7971f">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4392401551" target="_blank" rel="noopener">Product Design Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>ITT Inc.</span>
+    <span>Oud-Beijerland, South Holland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">20.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.0%"></div></div>
+  </div>
+  <div class="keywords">Keywords: matlab, simulink</div>
+  <div class="job-desc">**About ITT:**
+ ITT Inc. (NYSE: ITT) is a diversified global leading manufacturer of highly engineered critical components and customized technology solutions serving the flow, aerospace and defense, ...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4392401551" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="8a6e5d70dd760f02b4c635198bd7971f">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="8a6e5d70dd760f02b4c635198bd7971f">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="8a6e5d70dd760f02b4c635198bd7971f">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="20.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="a36c3f4a70e5dde072071f80cf5e1262">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4421167414" target="_blank" rel="noopener">Internship/Graduation: AI-Driven Engineering, the Path to Zero-Error Automation</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Vanderlande</span>
+    <span>Veghel, North Brabant, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">20.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:7.0%"></div></div>
+  </div>
+  <div class="keywords">Keywords: mechatronic, mechatronics</div>
+  <div class="job-desc">Job Title
+   
+
+  
+
+ Internship/Graduation AI\-Driven Engineering, the Path to Zero\-Error Automation
+   
+
+  
+
+**Job Description**
+**Assignment type** 
+ Internship/Graduation
+   
+
+  
+
+**Start date** 
+ ...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4421167414" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="a36c3f4a70e5dde072071f80cf5e1262">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="a36c3f4a70e5dde072071f80cf5e1262">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="a36c3f4a70e5dde072071f80cf5e1262">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="12.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="1a34208f395cfc265ee4b3903ea284c6">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4420737580" target="_blank" rel="noopener">Digital Twin Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Gradyent</span>
+    <span></span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">12.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:4.2%"></div></div>
+  </div>
+  <div class="keywords">Keywords: optimization, dynamica</div>
+  <div class="job-desc">**About Gradyent**
+ Providing heating and cooling for homes, buildings, and industry accounts for nearly 50% of global final energy consumption. As these systems become increasingly interconnected wit...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4420737580" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="1a34208f395cfc265ee4b3903ea284c6">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="1a34208f395cfc265ee4b3903ea284c6">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="1a34208f395cfc265ee4b3903ea284c6">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="12.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="517f5aef75925f2c017e250bd6e9509d">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4423370476" target="_blank" rel="noopener">Firmware Engineer      .</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Nedap</span>
+    <span>Groenlo, Gelderland, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">12.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:4.2%"></div></div>
+  </div>
+  <div class="keywords">Keywords: controller, microcontroller</div>
+  <div class="job-desc">Firmware Engineer
+   
+
+  
+
+ Groenlo, Netherlands
+   
+
+  
+
+ 32 \- 38 hrs
+   
+
+  
+
+ € 3\.500 \- € 4\.500
+   
+
+  
+
+ What are you going to do?
+   
+
+  
+
+ At Nedap Security, we develop intelligent and secur...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4423370476" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="517f5aef75925f2c017e250bd6e9509d">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="517f5aef75925f2c017e250bd6e9509d">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="517f5aef75925f2c017e250bd6e9509d">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="6.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="99b3cb0e1b13420df9d8dff219d2f058">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4424756296" target="_blank" rel="noopener">FPGA Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>The Vydar Group</span>
+    <span>Delft, South Holland, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">6.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:2.1%"></div></div>
+  </div>
+  <div class="keywords">Keywords: navigation, uav, drone</div>
+  <div class="job-desc">**FPGA Engineer** 
+
+
+
+
+  
+
+
+
+
+
+ The Vydar Group \| AI Microelectronic Navigation Systems in Defence
+ 
+
+
+
+  
+
+
+
+
+
+ 📍 Delft, Netherlands (On\-site) \| Full\-time
+ 
+
+
+
+  
+
+
+
+
+
+**About Vydar** 
+
+
+
+
+  
+
+
+
+...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4424756296" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="99b3cb0e1b13420df9d8dff219d2f058">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="99b3cb0e1b13420df9d8dff219d2f058">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="99b3cb0e1b13420df9d8dff219d2f058">? Maybe</button>
+  </div>
+</div>
+<div class="card discarded-card" style="display:none" data-score="4.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="082d52365627bfdfb7f5338a2fbff38b">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4356447573" target="_blank" rel="noopener">C&I Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>Bilfinger België & Nederland</span>
+    <span>Hengelo, Overijssel, Netherlands</span>
+    <span>~2026-06-05</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">4.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:1.4%"></div></div>
+  </div>
+  <div class="keywords">Keywords: regeling, besturing</div>
+  <div class="job-desc">**Wat ga je doen?**
+ Als C\&I Engineer sta jij aan de basis van het ontwerp van de besturingstechniek voor onze procesinstallaties. Je neemt actief deel aan veiligheidsstudies, waaronder HAZOP\-analys...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4356447573" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="082d52365627bfdfb7f5338a2fbff38b">&#10003; Applied</button>
+    <button class="discard-btn discarded" onclick="toggleDiscardCard(this)" data-jobid="082d52365627bfdfb7f5338a2fbff38b">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="082d52365627bfdfb7f5338a2fbff38b">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="4.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="a0eeb988e00c77c851fb9a9e1e9a2d2c">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4423521118" target="_blank" rel="noopener">MEMS Engineer</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>European Tech Recruit</span>
+    <span>Amsterdam, North Holland, Netherlands</span>
+    <span>2026-06-04</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">4.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:1.4%"></div></div>
+  </div>
+  <div class="keywords">Keywords: semiconductor, actuator</div>
+  <div class="job-desc">**MEMS Engineer \- Sensor and Actuator Technology** 
+
+
+
+
+  
+
+
+
+
+
+ We are currently partnered with a leading Sensor Designer and Manufacturer based in the Netherlands, who are looking for an experience...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4423521118" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="a0eeb988e00c77c851fb9a9e1e9a2d2c">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="a0eeb988e00c77c851fb9a9e1e9a2d2c">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="a0eeb988e00c77c851fb9a9e1e9a2d2c">? Maybe</button>
+  </div>
+</div>
+<div class="card" data-score="4.0" data-site="linkedin" data-target="false" data-new="true" data-desired="false" data-jobid="fa8655fa3d279124e7defc8ed89f7a49">
+  <div class="card-header">
+    <h3><a href="https://www.linkedin.com/jobs/view/4422995268" target="_blank" rel="noopener">Factory engineer verspaning</a></h3>
+    <div class="badges"><span class="badge badge-new">NEW</span><span class="badge badge-linkedin">LINKEDIN</span></div>
+  </div>
+  <div class="card-meta">
+    <span>VDL ETG Eindhoven</span>
+    <span>Eindhoven, North Brabant, Netherlands</span>
+    <span>2026-06-03</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num score-low">4.0</span>
+    <div class="score-bar"><div class="bar-fill score-low" style="width:1.4%"></div></div>
+  </div>
+  <div class="keywords">Keywords: semiconductor, regeling</div>
+  <div class="job-desc">Het dagelijks beheren van complexe mechanische producten en processen is voor jou als Factory Engineer een uitdaging. Bij VDL ETG Eindhoven ontwikkelen en produceren we, met de allernieuwste technieke...</div>
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <a class="apply-btn" href="https://www.linkedin.com/jobs/view/4422995268" target="_blank" rel="noopener">View posting</a>
+    <button class="apply-toggle-btn" onclick="toggleAppliedCard(this)" data-jobid="fa8655fa3d279124e7defc8ed89f7a49">&#10003; Applied</button>
+    <button class="discard-btn" onclick="toggleDiscardCard(this)" data-jobid="fa8655fa3d279124e7defc8ed89f7a49">&#128465; Discard</button>
+    <button class="maybe-btn" onclick="toggleMaybeCard(this)" data-jobid="fa8655fa3d279124e7defc8ed89f7a49">? Maybe</button>
+  </div>
+</div>
+</div>
+
+<footer>
+  Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
+  Runs daily at 09:00 NL time via GitHub Actions &nbsp;&middot;&nbsp;
+  Fit score = raw weighted keyword depth (all-time best: 284)
+</footer>
+
+<script>
+  const DESIRED_SCORE = 90;
+  const SERVER_APPLIED = new Set(["1972cfdb7298ea41a8c6f9b5fcbdddf1", "1e284c0fe759197e169d05d627fa971e", "bfdbf90fefcab699ef2a46bb9b07bc52", "a66dfbc9560975c518e01d414c68a367", "3b6ba7c918d0897c06b32862d2148ae2", "06ba0b15dd117bdb0ec7068f4c26b2d2", "18fea2acf19afb94040902c66b9b62cb", "59c815b430728263272f97eb9292e5b6", "9628654176424a3f337cad9f9f43fb7e", "9d150d17372e9b2d70ca6c6cb8c06f95", "4ca754188a8c78f84cca52198f7491d2"]);
+  const SERVER_DISCARDED = new Set(["6901d0eb37d094e5cef08424fd8ed92c", "24e76af1fee7ca61e1690fb7d1694344", "f8ed8466bbc5e338d584002c1982a154", "88b7c6c56bf962b59be1253f72ea0b45", "f9ab84027a9cc44d50d569eba0fa80ff", "0b8c57fa77be6c3a5152a402311c9cb5", "a4fa3970dd60c4df30840e99cf1c34d1", "eb5ffa59e3e2b8cf336dda3270439fb8", "7183fe15c2dd7a2abb1616b2e049fa44", "cb37cbd9a5f6cd00eed8abca6e8ad2bd", "536c4691982fc6cfe8d5876b5b71ce7c", "f647967aec7da70144d523001226a004", "7e751c5dac4a4161e244f2e2dfd6ad95", "93a8915ad27bb31ee8dca6d54176d004", "1e97b208fc88cd278683c18d084ccfd9", "250abb97397a4e38010147f864a5d9c4", "d0ec2791f7885b16f619dbcb288f3c4a", "94968685f8e606694de866bfab74b96b", "03047177d49504f2cbb0c7cd2dae1e3f", "8fbad3fd6c16d5415bb6c81ad7a2676a", "5a0f9ce7d41864af853a6cc980b9cd15", "b42c979fc3582ac267f843a4cb554cfa", "0cb2b6c59055f37f3e4b8e162690e85a", "5d926dba7c31bfb4c24cd80ee03a1320", "b723cfab89d3bbb40181b4f47bc2ad05", "ba32da848bfb69a59bbe3dbc54566349", "baa4ac9a1955bc25a8bc21ce4b2b08b6", "89405ae7cba908156852f33ab024697d", "92df270fddcfc43a3f4a33adad1e9c06", "caf9bbf293a9d5926634d4185f5a7f72", "a0e4670093274edc3529ac954fa14c68", "246e945cd22b1e6960c31d691e765102", "6c6cd356b7f8b0ad170a3e62a017dd36", "664af26db5bd1318f2a4bc2e810b0526", "3fa31d7c1ca11568030a9ca125865ee5", "0fa45306e8a9cf0a6601d2cad4db664a", "1fb87f7ae0a38da26371af6448abd190", "f322b99676a391436cdea93db7256242", "082d52365627bfdfb7f5338a2fbff38b", "a9b48d9042488c4d3e6210527edb458f", "15c1a26caa8f4be73ef467662b308cb4", "bcd0c5c16b42c64acf69b706f5816263", "95410776d8b892ab6c64d2dbefe437f1", "366256eef000b7a787cbbe675b716f6e", "20b449671a82972a633ca31c4f242b1b", "96fa244abcc734cbc436151a69377990", "924ff65bb5bbae900c3a4b8191d36797", "4c5cd0aea1fce6aaaa5839ec7d41db4c", "7e980b32e60461ee7ac8d97dd511c907", "94b4e01a5a4f43df135cbc01019dea5d", "9d150d17372e9b2d70ca6c6cb8c06f95", "3253d5dd05dacd6ae963923348310b64", "d77736161a4b50d29a59b91e1836d535", "3113982c56264652a4cbc9d41f27c14d", "50cc553a33a37b8f659a4ce10359c211", "cfe1621d84df8800ba2ae7936992e80c", "967b930de986996632e7a4e268358a1b", "76fbdf78f4286bf3799cc674fc1a98b5", "f33ca8ce8b23828410f9fc143f7bf7f6", "d96c1a222f2d34ba14e893c8dd5e9a7f", "678c487fc809e7d069e5656b64e76fab", "bb9bdba69777f7be4c6d648836ccd1ad", "8e873e48efc0f38dc051672929fa9a1d", "100694f8cd3e056d4442010052fcba28", "109e6d5c83a0d7fcd4251ac6fd67a0a0", "f02f52530e8d6866dc4fcc5e72deadf5", "4a3c68fce32983c40f2a6cac9e82fafa", "671bca69ebb5ad223a94a99a998a5d92", "19dc084a43fe619648d0b906affd4766", "a0695d316a8e02c05c7d27b4c045c4b5", "0556cb89e4e240d66eba41406aaa3fae", "f9435fb80102bec03e6c11023b7e8a71", "31370f490ce66d43ad5b8941c2a81469", "e65278c9581e304c22d4913b8554f3a7", "9bc0234eba8e63325cbf9461d6e57777", "749f64ce5cdccf6c44542bbef062b68b", "009688b55e33f1bfd045648d5dcf6f21", "892be6257f3c95a1d875a5268ec8bde3", "21b56b421532614a30c39317d4790558", "55b8605689f7b8ca13aa2518e00ed2ae", "bb4c53e3c4658b205352655bdc7d8632", "6ad7993434675741fadec94861100158", "baf7f6986b28893428f80630d05cb474", "31e536135420ec6a4da80c228a3680c6", "3cf9abd3dcd530727c77fe8d0381a6d9", "d5e66a8531575b78d2055c5c2de96956", "db97595e907d0040b6b7a7894eaff899", "635fbce081c38661e8b19fb7d9bdf991", "c627ab48babcd91d21a7f58b587194de", "d5a4b2f01241ef0eb9d3b057489655f5", "8b15354b227ae098abe0d5b38b2ba6fd", "2c64d1de51a8f49b47016c3e77bc71ce", "89be2bb30cc4b2721d2c79c71a41cc44", "e11b4ddc3f722ae6b441a1f5022cbe87", "36e177c9055996caed770b4ecd73b91f", "1fd2784d281e27b56cfb8bd9ea4f7731", "0dc59b247bfcd4da66e818541d4e2e6e", "140f06c8c82de92be6c0d8239cc4b4e2", "7c7294a7f6bb26274ad7bec4c7399518", "694205970d8e93b2180c2640cf120fb8", "787b667acbd629b4ad4c6649a65e1617", "3158af7b2e84e4ae78eb13c350202928", "9d0f62cb8456df3ea2d1401fad3df9d3", "1f21e31b9292fbce0a8c56a147f69371", "f8c30e74cf8a9970246de01fa915e63e", "ab4ffee41242bfbc88b5b676dc2b00f9", "2eb008060140bdd4b20ed713fe2a1d76", "45bdc2688f0b4358ccca2be91aea6ed1", "da01253240cc5151f6fc92bf443267dc", "93508ae58bc1b041ed46402aedca98c6", "83a358c84b9137009b6424ae789197c4", "632f47b2c60364bd97da35e655a369ee", "384cfedac7ff6d9df00b4a41fc1450ef", "1e8d9ced900ad94be572e7818490c5cd", "90c2729b20dfc938bc674f2f76d3f81b", "47f584a2eba26f55cfadf195d433a55a", "f3b436d359540b70f8c6fd5832a91fca", "60876652c2174341a9fb81d8dbb5886d", "49a5def5f9d23b2c12f2e7c2bb08f0d1", "ce53b7d1440398a57873a95d20e5ee2e", "19c41cccc4e2bc749a8665d9693019c8", "f1a0a6060b3bb5cfe017d24fcd483a3f", "2e4cf8e7f5f7695350f481dbdaa02ed9", "105151f7a38ffa741fefdc580af6c6ee", "ee08d4df5471cc55a5752df5304ce684", "bfdbf90fefcab699ef2a46bb9b07bc52", "111d67a7776b32ffac03763d445c4728", "77f7959834d485423066184409d20c72", "91385e2ad4918334a8551eb75f523ca5", "c5abe374019cd134b4f44e8f39a490a8", "7ddcc19034e183dfd20fecb1daf2fcdb", "884ae2210cb26431dfeaaeb43d5f9297", "83d87e42dacb1765e6bf12e35d825cfe", "ea5275bb83587ed9d8926828f0a822e1", "f7195abdf8fa788c608b0e8e07167d6d", "d011503468b96d970af6f2cfe4b5c9f7", "34fbc575ed43235159d5a470b1ebc544", "8332d702e996f9f7237df80d1dfa5763", "60e000424cf010e1e56683bc64c566be", "78fe360170dc387df6fb8ce5d7e1cf07", "15788b9db11d062689737c8fe337305d", "8a4a4cc821288ed6560e049f576c02ce", "b6ee466ee965b5202c1059fc93fd35fa", "cc3048e7407a9856fd764238491118f0", "2679280d98dfa37e5fe5ecf38fd8b489", "1880c929ddb8a72c6b3d02fca7686f06", "5ae0f18c168a818c62b2b1c8995c5b47", "34712df1a4fe01794643c9bc80fd4dfa", "17c935542a630cdda76bf1c78f39ec34", "5d06f18d60a9856040df6f0af440071f", "de217b685eb33d2f2da0696707d81646", "57b15458a493beb81e5b6223f5acfc9f", "d68f75c35f5a6e721503f1561a73c0ab", "723e3570e6d99aaf2886e98cdda6ec28", "6f88039ea9b4bacc7dcabc777f5e6b78", "2432189f3188ffef405d9ad07ae8056e", "f993c41a328c8a9ddeaa509153bd2c15", "a709bd7342a34359df90b57815b16134", "a8206c006bec6114fb37ad41897cf08d", "9af16cfd542227036dd5741697934ccc", "783f8193f96d63ae5db9513cf231ee43"]);
+  const SERVER_MAYBE = new Set(["015907859d696238e665c29db5239135", "2eb008060140bdd4b20ed713fe2a1d76", "413623c437463a2b84ec4abb6727a6c5", "7e980b32e60461ee7ac8d97dd511c907", "5ea0e0ee3114f4d52fe8ffb3c4e278e9", "6f88039ea9b4bacc7dcabc777f5e6b78"]);
+  let activeSite   = 'all';
+  let targetOnly   = false;
+  let newOnly      = false;
+  let activeSort   = 'score';
+  let showApplied  = false;
+
+  // ── Applied jobs — persisted to applied.json in the repo ──────────
+  const LS_KEY       = 'jss_applied';
+  const LS_PAT       = 'jss_gh_pat';
+  const LS_USER      = 'jss_gh_user';
+  const LS_REPO      = 'jss_gh_repo';
+  const APPLIED_FILE = 'applied.json';
+
+  let appliedSet = new Set(SERVER_APPLIED);  // seed from server-rendered set
+
+  async function loadApplied() {
+    // Fetch latest applied.json from GitHub Pages (cache-bust)
+    try {
+      const res = await fetch(APPLIED_FILE + '?_=' + Date.now());
+      if (res.ok) { const arr = await res.json(); arr.forEach(id => appliedSet.add(id)); }
+    } catch(e) {}
+    // Merge localStorage fallback
+    try {
+      const local = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      local.forEach(id => appliedSet.add(id));
+    } catch(e) {}
+    initAppliedUI();
+  }
+
+  function initAppliedUI() {
+    document.querySelectorAll('[data-jobid]').forEach(card => {
+      if (appliedSet.has(card.dataset.jobid)) {
+        card.classList.add('applied-card');
+        if (!window._showApplied) card.style.display = 'none';
+        const btn = card.querySelector('.apply-toggle-btn');
+        if (btn) { btn.textContent = '↩ Undo'; btn.classList.add('applied'); }
+      }
+    });
+    refreshAppliedCounter();
+    checkPatNotice();
+  }
+
+  async function saveApplied() {
+    const arr = Array.from(appliedSet);
+    localStorage.setItem(LS_KEY, JSON.stringify(arr));   // always save locally too
+
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;   // no PAT — localStorage only
+
+    try {
+      const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${APPLIED_FILE}`;
+      let sha = null;
+      try {
+        const r = await fetch(apiUrl, { headers: { Authorization: `Bearer ${pat}` } });
+        if (r.ok) { const d = await r.json(); sha = d.sha; }
+      } catch(e) {}
+      const body = { message: 'Update applied.json', content: btoa(JSON.stringify(arr, null, 2)) };
+      if (sha) body.sha = sha;
+      await fetch(apiUrl, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch(e) { console.warn('Could not save applied.json:', e); }
+  }
+
+  function checkPatNotice() {
+    const el = document.getElementById('patNotice');
+    if (el) el.style.display = localStorage.getItem(LS_PAT) ? 'none' : 'block';
+  }
+
+  function refreshAppliedCounter() {
+    const count = document.querySelectorAll('[data-jobid].applied-card').length;
+    const el = document.getElementById('appliedCount');
+    if (el) el.textContent = count;
+  }
+
+  function toggleAppliedCard(btn) {
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('[data-jobid]');
+    if (appliedSet.has(jid)) {
+      appliedSet.delete(jid);
+      card.classList.remove('applied-card');
+      card.style.display = '';
+      btn.textContent = '✓ Applied';
+      btn.classList.remove('applied');
+    } else {
+      appliedSet.add(jid);
+      card.classList.add('applied-card');
+      if (!window._showApplied) card.style.display = 'none';
+      btn.textContent = '↩ Undo';
+      btn.classList.add('applied');
+    }
+    refreshAppliedCounter();
+    saveApplied();
+  }
+
+  function toggleApplied(e) {
+    e.preventDefault();
+    window._showApplied = !window._showApplied;
+    document.querySelectorAll('[data-jobid].applied-card').forEach(c => {
+      c.style.display = window._showApplied ? '' : 'none';
+    });
+    const link = document.getElementById('appliedToggle');
+    if (link) link.textContent = (window._showApplied ? 'Hide' : 'Show') + ' applied (' + document.getElementById('appliedCount').textContent + ')';
+  }
+
+  // ── Discarded jobs ────────────────────────────────────────────────
+  const DISCARD_FILE = 'discarded.json';
+  let discardedSet = new Set(SERVER_DISCARDED);
+
+  async function loadDiscarded() {
+    try {
+      const res = await fetch(DISCARD_FILE + '?_=' + Date.now());
+      if (res.ok) { const arr = await res.json(); arr.forEach(id => discardedSet.add(id)); }
+    } catch(e) {}
+    try {
+      const local = JSON.parse(localStorage.getItem('jss_discarded') || '[]');
+      local.forEach(id => discardedSet.add(id));
+    } catch(e) {}
+    initDiscardedUI();
+  }
+
+  function initDiscardedUI() {
+    document.querySelectorAll('[data-jobid]').forEach(card => {
+      if (discardedSet.has(card.dataset.jobid)) {
+        card.classList.add('discarded-card');
+        card.style.display = 'none';
+        const btn = card.querySelector('.discard-btn');
+        if (btn) { btn.classList.add('discarded'); btn.title = 'Restore'; }
+      }
+    });
+  }
+
+  async function saveDiscarded() {
+    const arr = Array.from(discardedSet);
+    localStorage.setItem('jss_discarded', JSON.stringify(arr));
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;
+    try {
+      const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${DISCARD_FILE}`;
+      let sha = null;
+      try { const r = await fetch(apiUrl, {headers:{Authorization:`Bearer ${pat}`}}); if(r.ok){const d=await r.json();sha=d.sha;} } catch(e) {}
+      const body = {message:'Update discarded.json', content:btoa(JSON.stringify(arr,null,2))};
+      if (sha) body.sha = sha;
+      await fetch(apiUrl, {method:'PUT', headers:{Authorization:`Bearer ${pat}`,'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    } catch(e) { console.warn('Could not save discarded.json:', e); }
+  }
+
+  function toggleDiscardCard(btn) {
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('[data-jobid]');
+    if (discardedSet.has(jid)) {
+      discardedSet.delete(jid);
+      card.classList.remove('discarded-card');
+      card.style.display = '';
+      btn.classList.remove('discarded');
+      btn.title = '';
+    } else {
+      discardedSet.add(jid);
+      card.classList.add('discarded-card');
+      card.style.display = 'none';
+      btn.classList.add('discarded');
+      btn.title = 'Restore';
+    }
+    saveDiscarded();
+  }
+
+  // ── Maybe / Possible jobs ─────────────────────────────────────────────
+  const MAYBE_FILE = 'maybe.json';
+  let maybeSet = new Set(SERVER_MAYBE);
+
+  async function loadMaybe() {
+    try {
+      const res = await fetch(MAYBE_FILE + '?_=' + Date.now());
+      if (res.ok) { const arr = await res.json(); arr.forEach(id => maybeSet.add(id)); }
+    } catch(e) {}
+    try {
+      const local = JSON.parse(localStorage.getItem('jss_maybe') || '[]');
+      local.forEach(id => maybeSet.add(id));
+    } catch(e) {}
+    initMaybeUI();
+  }
+
+  function initMaybeUI() {
+    document.querySelectorAll('[data-jobid]').forEach(card => {
+      if (maybeSet.has(card.dataset.jobid)) {
+        card.classList.add('maybe-card');
+        if (!window._showMaybe) card.style.display = 'none';
+        const btn = card.querySelector('.maybe-btn');
+        if (btn) { btn.classList.add('maybe'); btn.textContent = '↩ Undo Maybe'; }
+      }
+    });
+  }
+
+  async function saveMaybe() {
+    const arr = Array.from(maybeSet);
+    localStorage.setItem('jss_maybe', JSON.stringify(arr));
+    const pat  = localStorage.getItem(LS_PAT);
+    const user = localStorage.getItem(LS_USER);
+    const repo = localStorage.getItem(LS_REPO);
+    if (!pat || !user || !repo) return;
+    try {
+      const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${MAYBE_FILE}`;
+      let sha = null;
+      try { const r = await fetch(apiUrl,{headers:{Authorization:`Bearer ${pat}`}}); if(r.ok){const d=await r.json();sha=d.sha;} } catch(e) {}
+      const body = {message:'Update maybe.json', content:btoa(JSON.stringify(arr,null,2))};
+      if (sha) body.sha = sha;
+      await fetch(apiUrl,{method:'PUT',headers:{Authorization:`Bearer ${pat}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    } catch(e) { console.warn('Could not save maybe.json:', e); }
+  }
+
+  function toggleMaybeCard(btn) {
+    const jid  = btn.dataset.jobid;
+    const card = btn.closest('[data-jobid]');
+    if (maybeSet.has(jid)) {
+      maybeSet.delete(jid);
+      card.classList.remove('maybe-card');
+      card.style.display = '';
+      btn.classList.remove('maybe');
+      btn.textContent = '? Maybe';
+    } else {
+      maybeSet.add(jid);
+      card.classList.add('maybe-card');
+      card.style.display = 'none';
+      btn.classList.add('maybe');
+      btn.textContent = '↩ Undo Maybe';
+    }
+    saveMaybe();
+  }
+
+  function applyFilters() {
+    const q = document.getElementById('searchBox').value.toLowerCase();
+    const minScoreRaw = document.getElementById('minScoreBox').value;
+    const minScore = minScoreRaw === '' ? null : parseFloat(minScoreRaw);
+    document.querySelectorAll('.card').forEach(card => {
+      const jid      = card.dataset.jobid || '';
+      const isApp    = appliedSet.has(jid);
+      const isDisc   = discardedSet.has(jid);
+      const isMaybe  = maybeSet.has(jid);
+      // Discarded and maybe cards are always hidden from the main board
+      if (isDisc || isMaybe) { card.style.display = 'none'; return; }
+      // Applied cards obey the showApplied toggle independently of filters
+      if (isApp) {
+        card.style.display = window._showApplied ? '' : 'none';
+        return;
+      }
+      const text     = card.innerText.toLowerCase();
+      const site     = card.dataset.site || '';
+      const isTarget = card.dataset.target === 'true';
+      const score    = parseFloat(card.dataset.score || '0');
+      const isNew    = card.dataset.new === 'true';
+      const matchText   = q === '' || text.includes(q);
+      const matchSite   = activeSite === 'all' || site === activeSite;
+      const matchTarget = !targetOnly || isTarget;
+      const matchScore  = minScore === null || isNaN(minScore) || score >= minScore;
+      const matchNew    = !newOnly || isNew;
+      card.classList.toggle('hidden', !(matchText && matchSite && matchTarget && matchScore && matchNew));
+    });
+  }
+
+  function filterSite(site, btn) {
+    activeSite = site;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      if (['all','linkedin','indeed'].includes(b.innerText.toLowerCase()) ||
+          b.innerText === 'All') b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    applyFilters();
+  }
+
+  function filterTarget(btn) {
+    targetOnly = !targetOnly;
+    btn.classList.toggle('active', targetOnly);
+    applyFilters();
+  }
+
+  function filterNew(btn) {
+    newOnly = !newOnly;
+    btn.classList.toggle('active', newOnly);
+    applyFilters();
+  }
+
+  function sortCards(mode, btn) {
+    activeSort = mode;
+    document.querySelectorAll('.sort-label + .filter-btn, .sort-label ~ .filter-btn')
+      .forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const grid  = document.getElementById('jobGrid');
+    const cards = Array.from(grid.querySelectorAll('.card'));
+    cards.sort((a, b) => {
+      if (mode === 'score') {
+        return parseFloat(b.dataset.score || 0) - parseFloat(a.dataset.score || 0);
+      }
+      // 'date' sort — rely on DOM order (already sorted by date server-side)
+      return 0;
+    });
+    cards.forEach(c => grid.appendChild(c));
+  }
+
+  // Run on page load
+  loadApplied();
+  loadDiscarded();
+  loadMaybe();
+</script>
+</body>
+</html>

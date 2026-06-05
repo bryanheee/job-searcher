@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archive — Control Theory Jobs NL</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5; color: #2c3e50;
+}
+header {
+  background: #1a3a5c; color: white; padding: 22px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}
+header h1 { font-size: 21px; font-weight: 600; }
+header p  { font-size: 12px; opacity: 0.65; margin-top: 5px; }
+.nav-link {
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 14px; border-radius: 6px; white-space: nowrap;
+}
+.nav-link:hover { background: rgba(255,255,255,0.15); }
+.section-header {
+  padding: 20px 32px 8px;
+  font-size: 16px; font-weight: 700; color: #1a3a5c;
+  border-left: 4px solid #2e86ab;
+  margin: 24px 32px 0;
+  background: white;
+  border-radius: 8px 8px 0 0;
+  border-top: 1px solid #e8e8e8;
+  border-right: 1px solid #e8e8e8;
+}
+.grid {
+  padding: 0 32px 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  background: white;
+  border-radius: 0 0 8px 8px;
+  border: 1px solid #e8e8e8;
+  border-top: none;
+  margin: 0 32px 8px;
+  padding-top: 16px;
+}
+.card {
+  background: #f8fafc; border-radius: 10px; padding: 18px 20px;
+  border: 1px solid #e8e8e8; display: flex; flex-direction: column; gap: 8px;
+}
+.card:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.09); }
+.target-card { border-left: 4px solid #f39c12; }
+.applied-card { border-left: 4px solid #166534; }
+.card-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 8px;
+}
+.card-header h3 { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.card-header h3 a { color: #1a3a5c; text-decoration: none; }
+.card-header h3 a:hover { text-decoration: underline; }
+.badges { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; align-items: flex-end; }
+.badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap; font-weight: 500;
+}
+.badge-target   { background: #fef3cd; color: #856404; }
+.badge-linkedin { background: #e8f4fd; color: #0a66c2; }
+.badge-indeed   { background: #e8f8f0; color: #2e7d32; }
+.badge-expired  { background: #f3f4f6; color: #6b7280; }
+.badge-applied  { background: #dcfce7; color: #166534; font-weight: 700; }
+.badge-desired  { background: #fde8e8; color: #c0392b; border: 1px solid #e74c3c; font-weight: 700; }
+.card-meta {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  font-size: 12px; color: #666;
+}
+.score-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+}
+.score-label { color: #888; flex-shrink: 0; }
+.score-num   { font-weight: 700; flex-shrink: 0; min-width: 36px; }
+.score-high  { color: #1e7e34; }
+.score-mid   { color: #856404; }
+.score-low   { color: #721c24; }
+.score-bar {
+  flex: 1; height: 6px; background: #e8e8e8;
+  border-radius: 4px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 4px;
+}
+.bar-fill.score-high { background: #28a745; }
+.bar-fill.score-mid  { background: #ffc107; }
+.bar-fill.score-low  { background: #dc3545; }
+.keywords { font-size: 11px; color: #999; }
+.job-desc { font-size: 12px; color: #666; margin-top: 6px; line-height: 1.5; }
+.undo-btn {
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #166534;
+  color: white; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}
+.undo-btn:hover { background: #14532d; }
+.view-btn {
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #1a3a5c;
+  color: white; border-radius: 6px; font-size: 12px;
+  text-decoration: none; font-weight: 500; align-self: flex-start;
+}
+.view-btn:hover { background: #2e6da4; }
+.restore-btn {
+  display: inline-block; margin-top: 4px;
+  padding: 5px 12px; background: #e74c3c;
+  color: white; border-radius: 6px; font-size: 11px;
+  border: none; cursor: pointer; font-weight: 500;
+}
+.restore-btn:hover { background: #c0392b; }
+.badge-discarded { background: #fde8e8; color: #c0392b; font-weight: 700; }
+.empty-state {
+  padding: 40px 32px; text-align: center; color: #888; font-size: 14px;
+  font-style: italic;
+}
+.filter-bar {
+  padding: 12px 32px; background: white;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  font-size: 13px;
+}
+.filter-bar strong { color: #1a3a5c; font-size: 12px; margin-right: 4px; }
+.filter-btn {
+  padding: 4px 13px; border-radius: 20px;
+  border: 1px solid #d0d0d0; background: #f5f5f5;
+  cursor: pointer; font-size: 12px; font-weight: 500; color: #444;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.filter-btn.active, .filter-btn:hover {
+  background: #1a3a5c; color: white; border-color: #1a3a5c;
+}
+.date-input {
+  padding: 4px 8px; border: 1px solid #d0d0d0;
+  border-radius: 6px; font-size: 12px; color: #444;
+}
+.filter-sep { color: #ccc; font-size: 12px; }
+footer {
+  text-align: center; padding: 24px; font-size: 11px; color: #bbb;
+}
+@media (max-width: 600px) {
+  .grid { padding: 12px 16px; grid-template-columns: 1fr; margin: 0 16px 8px; }
+  header, .section-header { padding-left: 16px; padding-right: 16px; }
+  .section-header { margin: 16px 16px 0; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Archive — Control Theory Jobs NL</h1>
+    <p>Updated: 05 June 2026 at 16:13 UTC</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="nav-link" href="index.html">Live Job Board</a>
+    <a class="nav-link" href="analytics.html">Analytics</a>
+    <a class="nav-link" href="settings.html">&#9881; Settings</a>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <strong>Show:</strong>
+  <button class="filter-btn active" onclick="setPreset('all', this)">All time</button>
+  <button class="filter-btn" onclick="setPreset('7', this)">Last 7 days</button>
+  <button class="filter-btn" onclick="setPreset('30', this)">Last 30 days</button>
+  <button class="filter-btn" onclick="setPreset('90', this)">Last 90 days</button>
+  <span class="filter-sep">&nbsp;|&nbsp;Custom:</span>
+  <input type="date" class="date-input" id="dateFrom" onchange="setCustom()">
+  <span class="filter-sep">—</span>
+  <input type="date" class="date-input" id="dateTo" onchange="setCustom()">
+</div>
+
+<div id="appliedSection">
+  <div class="section-header">Applied Jobs (<span id="appliedSectionCount">0</span>)</div>
+  <div class="grid" id="appliedGrid">
+    <div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>
+  </div>
+</div>
+
+<div id="maybeSection">
+  <div class="section-header">Maybe / Possible (<span id="maybeSectionCount">0</span>)</div>
+  <div class="grid" id="maybeGrid">
+    <div class="empty-state" id="maybeEmpty">No maybe jobs yet. Mark jobs as Maybe on the Live Job Board.</div>
+  </div>
+</div>
+
+<div id="expiredSection">
+  <div class="section-header">Expired Jobs (<span id="expiredSectionCount">0</span>)</div>
+  <div class="grid" id="expiredGrid">
+    <div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>
+  </div>
+</div>
+
+<div id="discardedSection">
+  <div class="section-header">Discarded Jobs (<span id="discardedSectionCount">0</span>)</div>
+  <div class="grid" id="discardedGrid">
+    <div class="empty-state" id="discardedEmpty">No discarded jobs yet.</div>
+  </div>
+</div>
+
+<footer>
+  Auto-generated by job_searcher.py &nbsp;&middot;&nbsp;
+  Applied and Discarded state is stored in your browser&apos;s localStorage
+</footer>
+
+<script>
+const ARCHIVE_DATA = {"jobs": [{"id": "393243028351fb994a00a680bb2d3258", "title": "Internship UAV Controls Engineer - Studentjob.nl", "company": "Jobster", "location": "Delft, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4424371647", "site": "linkedin", "score": 284.0, "keywords": ["ekf", "state estimation", "gnc", "control theory", "filtering", "flight control", "sensor fusion", "pid", "navigation", "uav"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "****Opening****\n WE CANNOT PROVIDE VISA SPONSORSHIP\n   \n\n  \n\n****Details****\n Preferred starting date: ASAP\n   \n\n  \n\n Weekly availability: full\\-time (5 days/week)\n   \n\n  \n\n Period: 6 months\n   \n\n  \n\n..."}, {"id": "b467597a2f6094a6a654feb3b712c5d3", "title": "Simulation Engineer", "company": "SelectForce®", "location": "Eindhoven, North Brabant, Netherlands", "url": "https://www.linkedin.com/jobs/view/4423382814", "site": "linkedin", "score": 74.0, "keywords": ["filtering", "matlab", "simulink", "precision", "signal processing"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "**Simulation Engineer** \n\n\n\n\n Our client is a high\\-tech company developing advanced systems at the cutting edge of innovation. They combine applied mathematics, sensor technology, and system integrat..."}, {"id": "cfebec849fae4b8973281695476c775c", "title": "Production and Mechatronics Engineer", "company": "Arc", "location": "Groningen, Groningen, Netherlands", "url": "https://www.linkedin.com/jobs/view/4423035687", "site": "linkedin", "score": 54.0, "keywords": ["motion control", "servo", "mechatronic", "mechatronics", "pid", "precision", "actuator"], "is_target": false, "date_posted": "2026-06-03", "first_seen": "2026-06-05", "is_expired": false, "description": "**Arc** \n\n\n\n\n\n Arc is a rapidly growing luxury tech brand, known for designing the world's most minimalistic phone case, the Arc Pulse.\n \n\n\n\n\n\n We are inventors, makers, and dreamers from across the w..."}, {"id": "2367900d177084999f60330a80ad274f", "title": "Inbedrijfsteller Meet- & Regeltechniek", "company": "Equans", "location": "Beek, LI, NL", "url": "https://nl.indeed.com/viewjob?jk=61ef6eefea7a37d8", "site": "indeed", "score": 52.0, "keywords": ["regeltechniek", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "### **Beschrijving**\n\n*Als inbedrijfsteller Meet\\- \\& Regeltechniek bij Equans breng je installaties tot leven. Jij zorgt ervoor dat gebouwbeheersystemen niet alleen draaien, maar ook doen waar ze voo..."}, {"id": "5e8b0e689aacff4b1e92b88627d8fa09", "title": "Service Engineer Validatie", "company": "Equans", "location": "Delft, ZH, NL", "url": "https://nl.indeed.com/viewjob?jk=7a1b359c5a9997f6", "site": "indeed", "score": 52.0, "keywords": ["regeltechniek", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "### **Beschrijving**\n\n*Stel je voor: Jij staat bij toonaangevende bedrijven als ASML, TNO en Universitaire ziekenhuizen en controleert of cleanrooms, operatiekamers en incubatoren exact doen wat ze mo..."}, {"id": "a34d9f0dde775ae0b3ac106cfc0749b4", "title": "Werkvoorbereider Elektrotechniek & Instrumentatie", "company": "Equans", "location": "Hoek, ZE, NL", "url": "https://nl.indeed.com/viewjob?jk=53b5a8a1090ea974", "site": "indeed", "score": 52.0, "keywords": ["regeltechniek", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "### **Beschrijving**\n\n*Word de spil in uitdagende industriële projecten in Zeeland**Wil jij een cruciale rol spelen in het voorbereiden van elektrotechnische\\- en instrumentatieprojecten binnen de ind..."}, {"id": "b32b88580dd4333c598d8d8a862678a6", "title": "Software Engineer Meet- en Regeltechniek", "company": "4Some technisch beheer", "location": "IJsselstein, UT, NL", "url": "https://nl.indeed.com/viewjob?jk=106de1cd18c6519f", "site": "indeed", "score": 52.0, "keywords": ["regeltechniek", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "IJsselstein\n\n\nFulltime\n\n\n€ 4392 \\- € 5997\n\n\n**Welkom bij 4Some: dé specialist in het beheer en onderhoud van technische gebouwinstallaties. Als familiair bedrijf met korte lijntjes en een fijne werksf..."}, {"id": "c17e14f6dc3989e43f5b76b9bc055897", "title": "Simulation Engineer", "company": "Uptec", "location": "", "url": "https://www.linkedin.com/jobs/view/4424182193", "site": "linkedin", "score": 52.0, "keywords": ["matlab", "simulink", "mechatronic", "mechatronics", "mechatronica", "simulatie"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "**Functieomschrijving** \n\n\n\n\n Wil jij werken aan simulaties en modellen van complexe hightech systemen? Als Simulation Engineer ben je verantwoordelijk voor het ontwikkelen en analyseren van simulatie..."}, {"id": "3039af42d83222a0279dd2e1003742f6", "title": "Simulatie Engineer", "company": "ENTER BV", "location": "Alphen aan den Rijn, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4423526134", "site": "linkedin", "score": 42.0, "keywords": ["matlab", "simulink", "luchtvaart", "ruimtevaart", "simulatie"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "Gaat jouw hart sneller kloppen van marineschepen, onderzeeboten en luxe superjachten?\n \n\n\n\n En ben jij op zoek naar een nieuwe uitdagende rol waarin jij jouw kwaliteiten kan laten zien? Dan ben jij de..."}, {"id": "c76e2a332ff4faccba53ceb01172d6c1", "title": "NPI Quality Engineer", "company": "TMC", "location": "Eindhoven, NB, NL", "url": "https://nl.indeed.com/viewjob?jk=f57522b04a5baada", "site": "indeed", "score": 40.0, "keywords": ["mechatronic", "mechatronics", "pid", "optimization"], "is_target": false, "date_posted": "2026-06-05", "first_seen": "2026-06-05", "is_expired": false, "description": "Netherlands New Product Introduction 5 \\- 10 years Eindhoven On\\-site\nDo you get energized by solving complex quality challenges in the high\\-tech industry? As a Quality Engineer within TMC NPI, you e..."}, {"id": "1464ae9448765e45cb3aa29859edd816", "title": "Testing Engineer - Rollingstock", "company": "CAF (Construcciones y Auxiliar de Ferrocarriles)", "location": "Leidschendam, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4403632535", "site": "linkedin", "score": 32.0, "keywords": ["mechatronic", "mechatronica", "luchtvaart", "besturing"], "is_target": false, "date_posted": "2026-06-03", "first_seen": "2026-06-05", "is_expired": false, "description": "Missie van de functie\n   \n\n  \n\n CAF Group heeft een overeenkomst getekend met zowel NS als Qbuzz voor de levering van twee typen rollend materieel. Voordat de producten voor openbaar gebruik kunnen wo..."}, {"id": "9f09feb52c74becfa61879b6ee9bb73b", "title": "SLAM Engineer - XR Labs Europe - Amsterdam Netherlands", "company": "Qualcomm", "location": "Amsterdam, North Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4404416219", "site": "linkedin", "score": 30.0, "keywords": ["sensor fusion", "pid", "optimization"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "**Company**\n Qualcomm Technologies Netherlands B.V.\n   \n\n  \n\n**Job Area**\n Engineering Group, Engineering Group \\> Multimedia Systems\n   \n\n  \n\n**General Summary**\n At\n **Qualcomm** \n**XR labs Europe**..."}, {"id": "40b850c1d1d2b2ebe14862dc4caa4c71", "title": "I&C Engineer", "company": "STILL", "location": "Hendrik-Ido-Ambacht, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4404272730", "site": "linkedin", "score": 24.0, "keywords": ["mechatronic", "mechatronics", "besturing", "simulatie"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "Wij zijn op zoek naar een I\\&C Engineer (Installation \\& Commissioning Engineer) om ons groeiende team te versterken! De succesvolle kandidaat zal verantwoordelijk zijn voor de installatie en inbedrij..."}, {"id": "83331b774968ea1af5cc6067a15b6e7d", "title": "Electrical Design Engineer | Eplan | High-Tech & Defense Systems", "company": "Akkodis", "location": "Hengelo, Overijssel, Netherlands", "url": "https://www.linkedin.com/jobs/view/4398800717", "site": "linkedin", "score": 22.0, "keywords": ["mechatronic", "mechatronics", "high-tech"], "is_target": false, "date_posted": "2026-06-03", "first_seen": "2026-06-05", "is_expired": false, "description": "**Welcome to Akkodis** \n\n\n\n\n At \\#Akkodis, we’re a diverse team of 50,000\\+ engineers and digital experts, operating across 30 locations worldwide. From training teams to delivering projects, our Smar..."}, {"id": "a22c02e355f507cc09b1bc34a4ded7b9", "title": "Engineer", "company": "Ergolift B.V.", "location": "Staphorst, Overijssel, Netherlands", "url": "https://www.linkedin.com/jobs/view/4337172424", "site": "linkedin", "score": 22.0, "keywords": ["mechatronic", "mechatronica", "regeling"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "FunctieomschrijvingWil jij ontwerpen maken die je ook echt tot leven ziet komen? Bij Ergolift werk je aan gevelonderhoudsinstallaties die je vanaf het eerste idee uitwerkt tot een volledig getest eind..."}, {"id": "ed5af54d927c9f85233081fd10130274", "title": "Mechatronica Engineer Robotica", "company": "Evoke", "location": "Barneveld, Gelderland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4424398764", "site": "linkedin", "score": 22.0, "keywords": ["mechatronic", "mechatronica", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "Als Mechatronica Engineer Robotica bouw en verbeter jij slimme robots en machines die de productie van industriële machines draaiend houden. Van programmeren tot testen en storingen oplossen, jij zorg..."}, {"id": "f7cac64d1e408b886650dbfbbd683aa0", "title": "Field Service Engineer", "company": "Evoke", "location": "Heerlen, Limburg, Netherlands", "url": "https://www.linkedin.com/jobs/view/4424397788", "site": "linkedin", "score": 22.0, "keywords": ["mechatronic", "mechatronica", "regeling"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "Werk aan innovatieve mechatronische systemen en reis naar klanten over de hele wereld. Je combineert techniek, service en klantcontact in een afwisselende functie waarin geen dag hetzelfde is. Los com..."}, {"id": "8a6e5d70dd760f02b4c635198bd7971f", "title": "Product Design Engineer", "company": "ITT Inc.", "location": "Oud-Beijerland, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4392401551", "site": "linkedin", "score": 20.0, "keywords": ["matlab", "simulink"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "**About ITT:**\n ITT Inc. (NYSE: ITT) is a diversified global leading manufacturer of highly engineered critical components and customized technology solutions serving the flow, aerospace and defense, ..."}, {"id": "a36c3f4a70e5dde072071f80cf5e1262", "title": "Internship/Graduation: AI-Driven Engineering, the Path to Zero-Error Automation", "company": "Vanderlande", "location": "Veghel, North Brabant, Netherlands", "url": "https://www.linkedin.com/jobs/view/4421167414", "site": "linkedin", "score": 20.0, "keywords": ["mechatronic", "mechatronics"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "Job Title\n   \n\n  \n\n Internship/Graduation AI\\-Driven Engineering, the Path to Zero\\-Error Automation\n   \n\n  \n\n**Job Description**\n**Assignment type** \n Internship/Graduation\n   \n\n  \n\n**Start date** \n ..."}, {"id": "1a34208f395cfc265ee4b3903ea284c6", "title": "Digital Twin Engineer", "company": "Gradyent", "location": "", "url": "https://www.linkedin.com/jobs/view/4420737580", "site": "linkedin", "score": 12.0, "keywords": ["optimization", "dynamica"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "**About Gradyent**\n Providing heating and cooling for homes, buildings, and industry accounts for nearly 50% of global final energy consumption. As these systems become increasingly interconnected wit..."}, {"id": "517f5aef75925f2c017e250bd6e9509d", "title": "Firmware Engineer      .", "company": "Nedap", "location": "Groenlo, Gelderland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4423370476", "site": "linkedin", "score": 12.0, "keywords": ["controller", "microcontroller"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "Firmware Engineer\n   \n\n  \n\n Groenlo, Netherlands\n   \n\n  \n\n 32 \\- 38 hrs\n   \n\n  \n\n € 3\\.500 \\- € 4\\.500\n   \n\n  \n\n What are you going to do?\n   \n\n  \n\n At Nedap Security, we develop intelligent and secur..."}, {"id": "99b3cb0e1b13420df9d8dff219d2f058", "title": "FPGA Engineer", "company": "The Vydar Group", "location": "Delft, South Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4424756296", "site": "linkedin", "score": 6.0, "keywords": ["navigation", "uav", "drone"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "**FPGA Engineer** \n\n\n\n\n  \n\n\n\n\n\n The Vydar Group \\| AI Microelectronic Navigation Systems in Defence\n \n\n\n\n  \n\n\n\n\n\n 📍 Delft, Netherlands (On\\-site) \\| Full\\-time\n \n\n\n\n  \n\n\n\n\n\n**About Vydar** \n\n\n\n\n  \n\n\n\n..."}, {"id": "082d52365627bfdfb7f5338a2fbff38b", "title": "C&I Engineer", "company": "Bilfinger België & Nederland", "location": "Hengelo, Overijssel, Netherlands", "url": "https://www.linkedin.com/jobs/view/4356447573", "site": "linkedin", "score": 4.0, "keywords": ["regeling", "besturing"], "is_target": false, "date_posted": "", "first_seen": "2026-06-05", "is_expired": false, "description": "**Wat ga je doen?**\n Als C\\&I Engineer sta jij aan de basis van het ontwerp van de besturingstechniek voor onze procesinstallaties. Je neemt actief deel aan veiligheidsstudies, waaronder HAZOP\\-analys..."}, {"id": "a0eeb988e00c77c851fb9a9e1e9a2d2c", "title": "MEMS Engineer", "company": "European Tech Recruit", "location": "Amsterdam, North Holland, Netherlands", "url": "https://www.linkedin.com/jobs/view/4423521118", "site": "linkedin", "score": 4.0, "keywords": ["semiconductor", "actuator"], "is_target": false, "date_posted": "2026-06-04", "first_seen": "2026-06-05", "is_expired": false, "description": "**MEMS Engineer \\- Sensor and Actuator Technology** \n\n\n\n\n  \n\n\n\n\n\n We are currently partnered with a leading Sensor Designer and Manufacturer based in the Netherlands, who are looking for an experience..."}, {"id": "fa8655fa3d279124e7defc8ed89f7a49", "title": "Factory engineer verspaning", "company": "VDL ETG Eindhoven", "location": "Eindhoven, North Brabant, Netherlands", "url": "https://www.linkedin.com/jobs/view/4422995268", "site": "linkedin", "score": 4.0, "keywords": ["semiconductor", "regeling"], "is_target": false, "date_posted": "2026-06-03", "first_seen": "2026-06-05", "is_expired": false, "description": "Het dagelijks beheren van complexe mechanische producten en processen is voor jou als Factory Engineer een uitdaging. Bij VDL ETG Eindhoven ontwikkelen en produceren we, met de allernieuwste technieke..."}], "score_ref": 284.0, "desired_score": 90, "applied_ids": ["a66dfbc9560975c518e01d414c68a367", "9628654176424a3f337cad9f9f43fb7e", "1972cfdb7298ea41a8c6f9b5fcbdddf1", "06ba0b15dd117bdb0ec7068f4c26b2d2", "18fea2acf19afb94040902c66b9b62cb", "59c815b430728263272f97eb9292e5b6", "9d150d17372e9b2d70ca6c6cb8c06f95", "3b6ba7c918d0897c06b32862d2148ae2", "4ca754188a8c78f84cca52198f7491d2", "1e284c0fe759197e169d05d627fa971e", "bfdbf90fefcab699ef2a46bb9b07bc52"], "discarded_ids": ["b6ee466ee965b5202c1059fc93fd35fa", "17c935542a630cdda76bf1c78f39ec34", "694205970d8e93b2180c2640cf120fb8", "5d926dba7c31bfb4c24cd80ee03a1320", "34712df1a4fe01794643c9bc80fd4dfa", "671bca69ebb5ad223a94a99a998a5d92", "50cc553a33a37b8f659a4ce10359c211", "83a358c84b9137009b6424ae789197c4", "0556cb89e4e240d66eba41406aaa3fae", "366256eef000b7a787cbbe675b716f6e", "f3b436d359540b70f8c6fd5832a91fca", "47f584a2eba26f55cfadf195d433a55a", "3113982c56264652a4cbc9d41f27c14d", "57b15458a493beb81e5b6223f5acfc9f", "19dc084a43fe619648d0b906affd4766", "6ad7993434675741fadec94861100158", "76fbdf78f4286bf3799cc674fc1a98b5", "9d150d17372e9b2d70ca6c6cb8c06f95", "d77736161a4b50d29a59b91e1836d535", "d5e66a8531575b78d2055c5c2de96956", "f7195abdf8fa788c608b0e8e07167d6d", "2679280d98dfa37e5fe5ecf38fd8b489", "250abb97397a4e38010147f864a5d9c4", "60e000424cf010e1e56683bc64c566be", "db97595e907d0040b6b7a7894eaff899", "924ff65bb5bbae900c3a4b8191d36797", "cc3048e7407a9856fd764238491118f0", "105151f7a38ffa741fefdc580af6c6ee", "884ae2210cb26431dfeaaeb43d5f9297", "5a0f9ce7d41864af853a6cc980b9cd15", "7183fe15c2dd7a2abb1616b2e049fa44", "ee08d4df5471cc55a5752df5304ce684", "0cb2b6c59055f37f3e4b8e162690e85a", "787b667acbd629b4ad4c6649a65e1617", "de217b685eb33d2f2da0696707d81646", "f1a0a6060b3bb5cfe017d24fcd483a3f", "60876652c2174341a9fb81d8dbb5886d", "bb9bdba69777f7be4c6d648836ccd1ad", "7e751c5dac4a4161e244f2e2dfd6ad95", "93a8915ad27bb31ee8dca6d54176d004", "49a5def5f9d23b2c12f2e7c2bb08f0d1", "f8ed8466bbc5e338d584002c1982a154", "b723cfab89d3bbb40181b4f47bc2ad05", "3158af7b2e84e4ae78eb13c350202928", "90c2729b20dfc938bc674f2f76d3f81b", "eb5ffa59e3e2b8cf336dda3270439fb8", "31370f490ce66d43ad5b8941c2a81469", "2eb008060140bdd4b20ed713fe2a1d76", "ea5275bb83587ed9d8926828f0a822e1", "f33ca8ce8b23828410f9fc143f7bf7f6", "1880c929ddb8a72c6b3d02fca7686f06", "384cfedac7ff6d9df00b4a41fc1450ef", "a709bd7342a34359df90b57815b16134", "100694f8cd3e056d4442010052fcba28", "bfdbf90fefcab699ef2a46bb9b07bc52", "baf7f6986b28893428f80630d05cb474", "0b8c57fa77be6c3a5152a402311c9cb5", "009688b55e33f1bfd045648d5dcf6f21", "92df270fddcfc43a3f4a33adad1e9c06", "15788b9db11d062689737c8fe337305d", "d68f75c35f5a6e721503f1561a73c0ab", "967b930de986996632e7a4e268358a1b", "e65278c9581e304c22d4913b8554f3a7", "55b8605689f7b8ca13aa2518e00ed2ae", "d5a4b2f01241ef0eb9d3b057489655f5", "36e177c9055996caed770b4ecd73b91f", "5d06f18d60a9856040df6f0af440071f", "3fa31d7c1ca11568030a9ca125865ee5", "140f06c8c82de92be6c0d8239cc4b4e2", "7ddcc19034e183dfd20fecb1daf2fcdb", "4a3c68fce32983c40f2a6cac9e82fafa", "536c4691982fc6cfe8d5876b5b71ce7c", "d96c1a222f2d34ba14e893c8dd5e9a7f", "749f64ce5cdccf6c44542bbef062b68b", "8a4a4cc821288ed6560e049f576c02ce", "f9ab84027a9cc44d50d569eba0fa80ff", "f647967aec7da70144d523001226a004", "111d67a7776b32ffac03763d445c4728", "ab4ffee41242bfbc88b5b676dc2b00f9", "45bdc2688f0b4358ccca2be91aea6ed1", "3cf9abd3dcd530727c77fe8d0381a6d9", "21b56b421532614a30c39317d4790558", "31e536135420ec6a4da80c228a3680c6", "19c41cccc4e2bc749a8665d9693019c8", "15c1a26caa8f4be73ef467662b308cb4", "8332d702e996f9f7237df80d1dfa5763", "78fe360170dc387df6fb8ce5d7e1cf07", "8e873e48efc0f38dc051672929fa9a1d", "da01253240cc5151f6fc92bf443267dc", "caf9bbf293a9d5926634d4185f5a7f72", "cfe1621d84df8800ba2ae7936992e80c", "8fbad3fd6c16d5415bb6c81ad7a2676a", "1e97b208fc88cd278683c18d084ccfd9", "6901d0eb37d094e5cef08424fd8ed92c", "ce53b7d1440398a57873a95d20e5ee2e", "bcd0c5c16b42c64acf69b706f5816263", "1f21e31b9292fbce0a8c56a147f69371", "a0695d316a8e02c05c7d27b4c045c4b5", "f993c41a328c8a9ddeaa509153bd2c15", "a8206c006bec6114fb37ad41897cf08d", "93508ae58bc1b041ed46402aedca98c6", "6f88039ea9b4bacc7dcabc777f5e6b78", "83d87e42dacb1765e6bf12e35d825cfe", "c5abe374019cd134b4f44e8f39a490a8", "246e945cd22b1e6960c31d691e765102", "b42c979fc3582ac267f843a4cb554cfa", "9d0f62cb8456df3ea2d1401fad3df9d3", "082d52365627bfdfb7f5338a2fbff38b", "5ae0f18c168a818c62b2b1c8995c5b47", "109e6d5c83a0d7fcd4251ac6fd67a0a0", "20b449671a82972a633ca31c4f242b1b", "a4fa3970dd60c4df30840e99cf1c34d1", "892be6257f3c95a1d875a5268ec8bde3", "1e8d9ced900ad94be572e7818490c5cd", "783f8193f96d63ae5db9513cf231ee43", "c627ab48babcd91d21a7f58b587194de", "ba32da848bfb69a59bbe3dbc54566349", "664af26db5bd1318f2a4bc2e810b0526", "635fbce081c38661e8b19fb7d9bdf991", "96fa244abcc734cbc436151a69377990", "24e76af1fee7ca61e1690fb7d1694344", "d011503468b96d970af6f2cfe4b5c9f7", "f9435fb80102bec03e6c11023b7e8a71", "bb4c53e3c4658b205352655bdc7d8632", "88b7c6c56bf962b59be1253f72ea0b45", "0fa45306e8a9cf0a6601d2cad4db664a", "7c7294a7f6bb26274ad7bec4c7399518", "9bc0234eba8e63325cbf9461d6e57777", "1fb87f7ae0a38da26371af6448abd190", "94b4e01a5a4f43df135cbc01019dea5d", "f8c30e74cf8a9970246de01fa915e63e", "cb37cbd9a5f6cd00eed8abca6e8ad2bd", "89be2bb30cc4b2721d2c79c71a41cc44", "34fbc575ed43235159d5a470b1ebc544", "e11b4ddc3f722ae6b441a1f5022cbe87", "3253d5dd05dacd6ae963923348310b64", "4c5cd0aea1fce6aaaa5839ec7d41db4c", "d0ec2791f7885b16f619dbcb288f3c4a", "0dc59b247bfcd4da66e818541d4e2e6e", "2432189f3188ffef405d9ad07ae8056e", "8b15354b227ae098abe0d5b38b2ba6fd", "95410776d8b892ab6c64d2dbefe437f1", "f02f52530e8d6866dc4fcc5e72deadf5", "a9b48d9042488c4d3e6210527edb458f", "9af16cfd542227036dd5741697934ccc", "723e3570e6d99aaf2886e98cdda6ec28", "2c64d1de51a8f49b47016c3e77bc71ce", "2e4cf8e7f5f7695350f481dbdaa02ed9", "03047177d49504f2cbb0c7cd2dae1e3f", "678c487fc809e7d069e5656b64e76fab", "a0e4670093274edc3529ac954fa14c68", "89405ae7cba908156852f33ab024697d", "94968685f8e606694de866bfab74b96b", "f322b99676a391436cdea93db7256242", "1fd2784d281e27b56cfb8bd9ea4f7731", "632f47b2c60364bd97da35e655a369ee", "6c6cd356b7f8b0ad170a3e62a017dd36", "77f7959834d485423066184409d20c72", "baa4ac9a1955bc25a8bc21ce4b2b08b6", "91385e2ad4918334a8551eb75f523ca5", "7e980b32e60461ee7ac8d97dd511c907"], "maybe_ids": ["2eb008060140bdd4b20ed713fe2a1d76", "015907859d696238e665c29db5239135", "5ea0e0ee3114f4d52fe8ffb3c4e278e9", "6f88039ea9b4bacc7dcabc777f5e6b78", "413623c437463a2b84ec4abb6727a6c5", "7e980b32e60461ee7ac8d97dd511c907"]};
+const LS_KEY = 'jss_applied';
+
+// Seed appliedSet from server-embedded applied_ids merged with localStorage
+let appliedSet = new Set(ARCHIVE_DATA.applied_ids || []);
+try {
+  const local = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+  local.forEach(id => appliedSet.add(id));
+} catch(e) {}
+
+// Seed discardedSet from server-embedded discarded_ids merged with localStorage
+let discardedSet = new Set(ARCHIVE_DATA.discarded_ids || []);
+try {
+  const localDisc = JSON.parse(localStorage.getItem('jss_discarded') || '[]');
+  localDisc.forEach(id => discardedSet.add(id));
+} catch(e) {}
+
+// Seed maybeSet from server-embedded maybe_ids merged with localStorage
+let maybeSet = new Set(ARCHIVE_DATA.maybe_ids || []);
+try {
+  const localMaybe = JSON.parse(localStorage.getItem('jss_maybe') || '[]');
+  localMaybe.forEach(id => maybeSet.add(id));
+} catch(e) {}
+
+function getApplied() {
+  return Array.from(appliedSet);
+}
+
+function saveApplied(arr) {
+  appliedSet = new Set(arr);
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}
+
+function saveDiscarded() {
+  localStorage.setItem('jss_discarded', JSON.stringify(Array.from(discardedSet)));
+}
+
+function saveMaybe() {
+  const arr = Array.from(maybeSet);
+  localStorage.setItem('jss_maybe', JSON.stringify(arr));
+  const pat  = localStorage.getItem('jss_gh_pat');
+  const user = localStorage.getItem('jss_gh_user');
+  const repo = localStorage.getItem('jss_gh_repo');
+  if (!pat || !user || !repo) return;
+  const MAYBE_FILE = 'maybe.json';
+  try {
+    const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${MAYBE_FILE}`;
+    let sha = null;
+    fetch(apiUrl,{headers:{Authorization:`Bearer ${pat}`}})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && d.sha) sha = d.sha;
+        const body = {message:'Update maybe.json', content:btoa(JSON.stringify(arr,null,2))};
+        if (sha) body.sha = sha;
+        return fetch(apiUrl,{method:'PUT',headers:{Authorization:`Bearer ${pat}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+      })
+      .catch(e => console.warn('Could not save maybe.json:', e));
+  } catch(e) { console.warn('Could not save maybe.json:', e); }
+}
+
+function scoreClass(score, ref) {
+  if (score >= 0.6 * ref) return 'score-high';
+  if (score >= 0.3 * ref) return 'score-mid';
+  return 'score-low';
+}
+
+function buildCard(job, isApplied) {
+  const ref     = ARCHIVE_DATA.score_ref || 1;
+  const desired = ARCHIVE_DATA.desired_score || 0;
+  const sc      = job.score;
+  const cls     = scoreClass(sc, ref);
+  const barPct  = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws     = (job.keywords || []).join(', ');
+  const dateLbl = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge  = job.site ? `<span class="badge badge-${job.site}">${job.site.toUpperCase()}</span>` : '';
+  const targetBadge = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge = isApplied ? `<span class="badge badge-applied">&#10003; Applied</span>` : `<span class="badge badge-expired">Expired</span>`;
+  const actionBtn = isApplied
+    ? `<button class="undo-btn" onclick="undoApplied('${job.id}', this)">&#8617; Undo Applied</button>`
+    : '';
+  const cardCls = isApplied ? 'card applied-card' : (job.is_target ? 'card target-card' : 'card');
+
+  const descHtml = job.description ? `<div class="job-desc">${job.description}</div>` : '';
+  const fsDate   = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${cardCls}" data-jobid="${job.id}" data-firstseen="${fsDate}">
+  <div class="card-header">
+    <h3><a href="${job.url}" target="_blank" rel="noopener">${job.title}</a></h3>
+    <div class="badges">${desiredBadge}${targetBadge}${statusBadge}${siteBadge}</div>
+  </div>
+  <div class="card-meta">
+    <span>${job.company}</span>
+    <span>${job.location}</span>
+    <span>${dateLbl}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${cls}">${sc}</span>
+    <div class="score-bar"><div class="bar-fill ${cls}" style="width:${barPct}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${kws || '—'}</div>
+  ${descHtml}
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${job.url}" target="_blank" rel="noopener">View posting</a>
+    ${actionBtn}
+  </div>
+</div>`;
+}
+
+function buildDiscardedCard(job) {
+  const ref      = ARCHIVE_DATA.score_ref || 1;
+  const desired  = ARCHIVE_DATA.desired_score || 0;
+  const sc       = job.score;
+  const cls      = scoreClass(sc, ref);
+  const barPct   = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws      = (job.keywords || []).join(', ');
+  const dateLbl  = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge    = job.site ? `<span class="badge badge-${job.site}">${job.site.toUpperCase()}</span>` : '';
+  const targetBadge  = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge  = `<span class="badge badge-discarded">Discarded</span>`;
+  const cardCls      = job.is_target ? 'card target-card' : 'card';
+  const descHtml2    = job.description ? `<div class="job-desc">${job.description}</div>` : '';
+  const fsDate2      = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${cardCls}" data-jobid="${job.id}" data-firstseen="${fsDate2}">
+  <div class="card-header">
+    <h3><a href="${job.url}" target="_blank" rel="noopener">${job.title}</a></h3>
+    <div class="badges">${desiredBadge}${targetBadge}${statusBadge}${siteBadge}</div>
+  </div>
+  <div class="card-meta">
+    <span>${job.company}</span>
+    <span>${job.location}</span>
+    <span>${dateLbl}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${cls}">${sc}</span>
+    <div class="score-bar"><div class="bar-fill ${cls}" style="width:${barPct}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${kws || '—'}</div>
+  ${descHtml2}
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${job.url}" target="_blank" rel="noopener">View posting</a>
+    <button class="restore-btn" onclick="restoreDiscarded('${job.id}', this)">&#8617; Restore</button>
+  </div>
+</div>`;
+}
+
+function buildMaybeCard(job) {
+  const ref      = ARCHIVE_DATA.score_ref || 1;
+  const desired  = ARCHIVE_DATA.desired_score || 0;
+  const sc       = job.score;
+  const cls      = scoreClass(sc, ref);
+  const barPct   = Math.min(sc / ref * 100, 100).toFixed(1);
+  const kws      = (job.keywords || []).join(', ');
+  const dateLbl  = job.date_posted ? job.date_posted.slice(0, 10) : (job.first_seen ? job.first_seen.slice(0, 10) : 'Date unknown');
+  const siteBadge    = job.site ? `<span class="badge badge-${job.site}">${job.site.toUpperCase()}</span>` : '';
+  const targetBadge  = job.is_target ? `<span class="badge badge-target">Target company</span>` : '';
+  const desiredBadge = (desired > 0 && sc >= desired) ? `<span class="badge badge-desired">&#9733; Match</span>` : '';
+  const statusBadge  = `<span class="badge" style="background:#fef3cd;color:#92400e;font-weight:700;">? Maybe</span>`;
+  const cardCls      = job.is_target ? 'card target-card' : 'card';
+  const descHtml3    = job.description ? `<div class="job-desc">${job.description}</div>` : '';
+  const fsDate3      = job.first_seen ? job.first_seen.slice(0, 10) : '';
+  return `<div class="${cardCls}" data-jobid="${job.id}" data-firstseen="${fsDate3}">
+  <div class="card-header">
+    <h3><a href="${job.url}" target="_blank" rel="noopener">${job.title}</a></h3>
+    <div class="badges">${desiredBadge}${targetBadge}${statusBadge}${siteBadge}</div>
+  </div>
+  <div class="card-meta">
+    <span>${job.company}</span>
+    <span>${job.location}</span>
+    <span>${dateLbl}</span>
+  </div>
+  <div class="score-row">
+    <span class="score-label">Fit:</span>
+    <span class="score-num ${cls}">${sc}</span>
+    <div class="score-bar"><div class="bar-fill ${cls}" style="width:${barPct}%"></div></div>
+  </div>
+  <div class="keywords">Keywords: ${kws || '—'}</div>
+  ${descHtml3}
+  <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+    <a class="view-btn" href="${job.url}" target="_blank" rel="noopener">View posting</a>
+    <button class="restore-btn" onclick="restoreMaybe('${job.id}', this)" style="background:#f39c12;">&#8617; Restore</button>
+  </div>
+</div>`;
+}
+
+function undoApplied(jid, btn) {
+  appliedSet.delete(jid);
+  saveApplied(Array.from(appliedSet));
+  // Remove card from applied section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section if job is expired and not discarded
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired && !discardedSet.has(jid)) {
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }
+  updateCounts();
+}
+
+function restoreDiscarded(jid, btn) {
+  discardedSet.delete(jid);
+  saveDiscarded();
+  // Remove card from discarded section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired) {
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }
+  updateCounts();
+}
+
+function restoreMaybe(jid, btn) {
+  maybeSet.delete(jid);
+  saveMaybe();
+  // Remove card from maybe section
+  const card = btn.closest('[data-jobid]');
+  if (card) card.remove();
+  // Move to expired section
+  const job = (ARCHIVE_DATA.jobs || []).find(j => j.id === jid);
+  if (job && job.is_expired) {
+    const expiredGrid = document.getElementById('expiredGrid');
+    const emptyEl = document.getElementById('expiredEmpty');
+    if (emptyEl) emptyEl.remove();
+    expiredGrid.insertAdjacentHTML('beforeend', buildCard(job, false));
+  }
+  updateCounts();
+}
+
+function countVisible(gridEl) {
+  return Array.from(gridEl.querySelectorAll('[data-jobid]'))
+    .filter(c => c.style.display !== 'none').length;
+}
+
+function updateCounts() {
+  const appliedGrid    = document.getElementById('appliedGrid');
+  const maybeGrid      = document.getElementById('maybeGrid');
+  const expiredGrid    = document.getElementById('expiredGrid');
+  const discardedGrid  = document.getElementById('discardedGrid');
+  const appliedCards   = countVisible(appliedGrid);
+  const maybeCards     = countVisible(maybeGrid);
+  const expiredCards   = countVisible(expiredGrid);
+  const discardedCards = countVisible(discardedGrid);
+  document.getElementById('appliedSectionCount').textContent = appliedCards;
+  document.getElementById('maybeSectionCount').textContent = maybeCards;
+  document.getElementById('expiredSectionCount').textContent = expiredCards;
+  document.getElementById('discardedSectionCount').textContent = discardedCards;
+  if (appliedCards === 0 && !document.getElementById('appliedEmpty')) {
+    appliedGrid.innerHTML = '<div class="empty-state" id="appliedEmpty">No applied jobs yet. Mark jobs as Applied on the Live Job Board.</div>';
+  }
+  if (maybeCards === 0 && !document.getElementById('maybeEmpty')) {
+    maybeGrid.innerHTML = '<div class="empty-state" id="maybeEmpty">No maybe jobs yet. Mark jobs as Maybe on the Live Job Board.</div>';
+  }
+  if (expiredCards === 0 && !document.getElementById('expiredEmpty')) {
+    expiredGrid.innerHTML = '<div class="empty-state" id="expiredEmpty">No expired jobs yet.</div>';
+  }
+  if (discardedCards === 0 && !document.getElementById('discardedEmpty')) {
+    discardedGrid.innerHTML = '<div class="empty-state" id="discardedEmpty">No discarded jobs yet.</div>';
+  }
+}
+
+// ── Date filter ──────────────────────────────────────────────────
+let _filterFrom = null;  // Date | null
+let _filterTo   = null;  // Date | null
+
+function setPreset(days, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value   = '';
+  if (days === 'all') {
+    _filterFrom = null;
+    _filterTo   = null;
+  } else {
+    _filterTo   = new Date();
+    _filterFrom = new Date();
+    _filterFrom.setDate(_filterFrom.getDate() - parseInt(days));
+  }
+  applyDateFilter();
+}
+
+function setCustom() {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const fv = document.getElementById('dateFrom').value;
+  const tv = document.getElementById('dateTo').value;
+  _filterFrom = fv ? new Date(fv) : null;
+  _filterTo   = tv ? new Date(tv) : null;
+  applyDateFilter();
+}
+
+function _inRange(dateStr) {
+  if (!_filterFrom && !_filterTo) return true;
+  if (!dateStr) return true;   // no date → always show
+  const d = new Date(dateStr);
+  if (_filterFrom && d < _filterFrom) return false;
+  if (_filterTo) {
+    const end = new Date(_filterTo);
+    end.setHours(23, 59, 59, 999);
+    if (d > end) return false;
+  }
+  return true;
+}
+
+function applyDateFilter() {
+  ['appliedGrid','maybeGrid','expiredGrid','discardedGrid'].forEach(id => {
+    document.getElementById(id).querySelectorAll('[data-jobid]').forEach(card => {
+      card.style.display = _inRange(card.getAttribute('data-firstseen')) ? '' : 'none';
+    });
+  });
+  updateCounts();
+}
+
+// ── Boot ─────────────────────────────────────────────────────────
+(function init() {
+  const jobs          = ARCHIVE_DATA.jobs || [];
+  const appliedGrid   = document.getElementById('appliedGrid');
+  const maybeGrid     = document.getElementById('maybeGrid');
+  const expiredGrid   = document.getElementById('expiredGrid');
+  const discardedGrid = document.getElementById('discardedGrid');
+
+  let appliedHtml   = '';
+  let maybeHtml     = '';
+  let expiredHtml   = '';
+  let discardedHtml = '';
+
+  for (const job of jobs) {
+    const isApp   = appliedSet.has(job.id);
+    const isMaybe = maybeSet.has(job.id);
+    const isDisc  = discardedSet.has(job.id);
+    if (isApp) {
+      appliedHtml += buildCard(job, true);
+    } else if (isMaybe) {
+      maybeHtml += buildMaybeCard(job);
+    } else if (isDisc) {
+      discardedHtml += buildDiscardedCard(job);
+    } else if (job.is_expired) {
+      expiredHtml += buildCard(job, false);
+    }
+  }
+
+  if (appliedHtml)   { appliedGrid.innerHTML   = appliedHtml;   }
+  if (maybeHtml)     { maybeGrid.innerHTML     = maybeHtml;     }
+  if (expiredHtml)   { expiredGrid.innerHTML   = expiredHtml;   }
+  if (discardedHtml) { discardedGrid.innerHTML = discardedHtml; }
+
+  updateCounts();
+})();
+</script>
+</body>
+</html>
