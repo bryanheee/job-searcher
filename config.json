@@ -3,13 +3,25 @@
     "DevOps",
     "Data Engineer",
     "Cloud Engineer",
-    "AI Engineer"
+    "AI Engineer",
+    "Machine Learning engineer"
   ],
   "scored_keywords": [
     {
       "weight": 50,
       "keywords": [
-        "year of experience"
+        "early career",
+        "graduate",
+        "starter",
+        "fresher",
+        "entry"
+      ]
+    },
+    {
+      "weight": 20,
+      "keywords": [
+        "0 - 1 years of experience",
+        "0.5 - 1 years of experience"
       ]
     }
   ],
@@ -52,7 +64,7 @@
   ],
   "target_companies": [],
   "results_per_query": 30,
-  "hours_old": 48,
+  "hours_old": 672,
   "min_keywords": 2,
   "desired_score": 90,
   "site_title": "Software Data Cloud",
