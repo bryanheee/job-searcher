@@ -1,27 +1,97 @@
 {
+  "site_title": "My Job Search",
+  "country": "Netherlands",
   "search_queries": [
-    "DevOps",
-    "Data Engineer",
-    "Cloud Engineer",
-    "AI Engineer",
-    "Machine Learning engineer"
+    "control systems engineer",
+    "mechatronics engineer",
+    "motion control engineer",
+    "GNC engineer",
+    "control engineer MATLAB",
+    "systems and control engineer",
+    "servo control engineer",
+    "embedded control engineer",
+    "flight dynamics engineer",
+    "precision engineering control"
   ],
   "scored_keywords": [
     {
-      "weight": 50,
+      "weight": 3,
       "keywords": [
-        "early career",
-        "graduate",
-        "starter",
-        "fresher",
-        "entry"
+        "mpc",
+        "model predictive control",
+        "robust control",
+        "h-infinity",
+        "h infinity",
+        "mu-synthesis",
+        "nonlinear control",
+        "nonlinear systems",
+        "kalman",
+        "state observer",
+        "luenberger",
+        "lqr",
+        "lqg",
+        "state-space",
+        "state space",
+        "system identification",
+        "sysid",
+        "gnc",
+        "guidance navigation control",
+        "deep learning",
+        "machine learning",
+        "python",
+        "pytorch",
+        "tensorflow"
       ]
     },
     {
-      "weight": 20,
+      "weight": 2,
       "keywords": [
-        "0 - 1 years of experience",
-        "0.5 - 1 years of experience"
+        "matlab",
+        "simulink",
+        "control theory",
+        "feedback control",
+        "motion control",
+        "servo",
+        "servomotor",
+        "mechatronics",
+        "mechatronic",
+        "robotics",
+        "robot",
+        "aerospace",
+        "avionics",
+        "flight control",
+        "embedded control",
+        "real-time control",
+        "real time control"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "control",
+        "automation",
+        "dynamical systems",
+        "high-tech",
+        "high tech",
+        "precision",
+        "semiconductor",
+        "sensor fusion",
+        "localization",
+        "navigation",
+        "inertial",
+        "signal processing",
+        "pid",
+        "pid control",
+        "frequency domain",
+        "bode",
+        "nyquist",
+        "optical",
+        "lithography",
+        "unmanned",
+        "uav",
+        "drone",
+        "satellite",
+        "space"
       ]
     }
   ],
@@ -30,12 +100,7 @@
     "scada",
     "hmi",
     "automation engineer",
-    "welding",
-    "project engineer",
-    "electrical engineer",
-    "postdoc",
-    "phd",
-    "technician"
+    "welding"
   ],
   "blacklist_full": [
     "ladder logic",
@@ -43,10 +108,7 @@
     "siemens s7",
     "step 7",
     "beckhoff ads",
-    "codesys",
-    "plc",
-    "scada",
-    "hmi"
+    "codesys"
   ],
   "senior_patterns": [
     "\\bsenior\\b",
@@ -62,11 +124,32 @@
     "\\b[5-9]\\+\\s*year",
     "\\b1[0-9]\\+\\s*year"
   ],
-  "target_companies": [],
+  "target_companies": [
+    "asml",
+    "sioux",
+    "nobleo",
+    "demcon",
+    "tmc",
+    "nlr",
+    "tno",
+    "orange aerospace",
+    "vanderlande",
+    "lely",
+    "thales",
+    "fokker",
+    "airbus",
+    "canon production printing",
+    "marin",
+    "smart robotics",
+    "avular",
+    "philips",
+    "nxp",
+    "prodrive",
+    "daf",
+    "vi grade",
+    "mecaer"
+  ],
   "results_per_query": 30,
-  "hours_old": 672,
-  "min_keywords": 2,
-  "desired_score": 0,
-  "site_title": "Bryan's Job search results",
-  "country": "Netherlands"
+  "hours_old": 168,
+  "min_keywords": 1
 }
