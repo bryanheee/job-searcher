@@ -10,11 +10,7 @@
     {
       "weight": 50,
       "keywords": [
-        "early career",
-        "graduate",
-        "starter",
-        "fresher",
-        "entry"
+        "early career"
       ]
     },
     {
@@ -22,6 +18,60 @@
       "keywords": [
         "0 - 1 years of experience",
         "0.5 - 1 years of experience"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "graduate"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "starter"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "fresher"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "entry"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "traineeship"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "internship"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "emerging"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "young professional"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "associate"
       ]
     }
   ],
@@ -62,9 +112,18 @@
     "\\b[5-9]\\+\\s*year",
     "\\b1[0-9]\\+\\s*year"
   ],
-  "target_companies": [],
+  "target_companies": [
+    "asml",
+    "rabobank",
+    "adyen",
+    "miro",
+    "abn amro",
+    "metyis",
+    "xebia",
+    "xonmia"
+  ],
   "results_per_query": 30,
-  "hours_old": 24,
+  "hours_old": 672,
   "min_keywords": 1,
   "desired_score": 0,
   "site_title": "Bryan's Job search results",
