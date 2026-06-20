@@ -32,7 +32,16 @@
       "weight": 20,
       "keywords": [
         "0 - 1 years of experience",
-        "0.5 - 1 years of experience"
+        "0.5 - 1 years of experience",
+        "minimum 2+ years"
+      ]
+    },
+    {
+      "weight": 1,
+      "keywords": [
+        "Apache Kafka",
+        "apache kafka",
+        "springboot"
       ]
     }
   ],
