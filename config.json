@@ -9,7 +9,9 @@
     "data",
     "devops",
     "Data",
-    "DevOps"
+    "DevOps",
+    "backend developer",
+    "back-end developer"
   ],
   "scored_keywords": [
     {
@@ -37,11 +39,20 @@
       ]
     },
     {
-      "weight": 1,
+      "weight": 10,
       "keywords": [
         "Apache Kafka",
         "apache kafka",
-        "springboot"
+        "springboot",
+        "CI/CD",
+        "GitHubActions",
+        "GitHub Actions"
+      ]
+    },
+    {
+      "weight": 50,
+      "keywords": [
+        "mentor"
       ]
     }
   ],
@@ -83,7 +94,7 @@
     "\\b1[0-9]\\+\\s*year"
   ],
   "target_companies": [],
-  "results_per_query": 30,
+  "results_per_query": 60,
   "hours_old": 24,
   "min_keywords": 1,
   "desired_score": 0,
