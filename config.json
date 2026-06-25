@@ -86,7 +86,14 @@
     "Hengelo",
     "stage",
     "afstudeerstage",
-    "scriptie"
+    "scriptie",
+    "internship",
+    "Nederlands spreekt op C2-niveau",
+    "EngD",
+    "lecturer",
+    "financial analyst",
+    "mechanical engineer",
+    "embedded"
   ],
   "senior_patterns": [
     "\\bsenior\\b",
@@ -103,7 +110,7 @@
     "\\b1[0-9]\\+\\s*year"
   ],
   "target_companies": [],
-  "results_per_query": 60,
+  "results_per_query": 30,
   "hours_old": 24,
   "min_keywords": 1,
   "desired_score": 0,
