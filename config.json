@@ -46,7 +46,11 @@
         "springboot",
         "CI/CD",
         "GitHubActions",
-        "GitHub Actions"
+        "GitHub Actions",
+        "Python",
+        "Java",
+        "Docker",
+        "Kubernetes"
       ]
     },
     {
@@ -77,7 +81,12 @@
     "codesys",
     "plc",
     "scada",
-    "hmi"
+    "hmi",
+    "Overijssel",
+    "Hengelo",
+    "stage",
+    "afstudeerstage",
+    "scriptie"
   ],
   "senior_patterns": [
     "\\bsenior\\b",
